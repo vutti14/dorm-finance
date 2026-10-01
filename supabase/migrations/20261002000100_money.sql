@@ -575,7 +575,8 @@ create view v_requests with (security_invoker) as
     left join profiles au on au.id = r.audited_by
     left join profiles ak on ak.id = r.asked_by;
 
--- "บัญชีระหว่างเจ้าของกับหอ" = real-estate spending − owner-paid expenses − owner injections (+ opening figures)
+-- "บัญชีระหว่างเจ้าของกับหอ" = real-estate spending − owner-paid expenses − owner injections (+ opening figures).
+-- Owner draws are profit taken out: shown separately, neither added nor subtracted (owner decision 1 ต.ค. 69).
 create view v_owner_account with (security_invoker) as
   with o as (select coalesce(value, '{}'::jsonb) v from settings where key = 'owner_opening'),
        n as (select
