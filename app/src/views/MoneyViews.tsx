@@ -4,7 +4,8 @@ import { rpc, supabase } from '../lib/supabase'
 import { useLive } from '../lib/live'
 import { fmt, thaiDate, todayTH } from '../lib/format'
 import { WALLET_TH, useProjects, useWalletBalances } from '../lib/requests'
-import { num } from '../lib/types'
+import { num, type Role } from '../lib/types'
+import OtherMoney from './OtherMoney'
 import { ProjectTag } from '../components/RequestCard'
 import { Loading, useAction } from '../components/ui'
 
@@ -125,7 +126,7 @@ export function OwnerAccount({ o }: { o: Record<string, number> }) {
 interface Rec { wallet_id: string; bank_balance: number; system_balance: number; checked_at: string }
 interface Led { id: number; on_date: string; wallet_id: string; amount: number; category: string; project_id: string | null; description: string | null }
 
-export function Balances({ canCheck }: { canCheck: boolean }) {
+export function Balances({ canCheck, role }: { canCheck: boolean; role: Role }) {
   const bal = useWalletBalances()
   const projects = useProjects()
   const { busy, run } = useAction()
@@ -176,6 +177,7 @@ export function Balances({ canCheck }: { canCheck: boolean }) {
         </div>
         <p className="muted">กระทบยอดสัปดาห์ละครั้ง ไม่ตรง = ขึ้นแจ้งเตือนให้หน่อย</p>
       </div>
+      <OtherMoney role={role} />
       <div className="panel">
         <h2>เงินเข้า-ออกล่าสุด</h2>
         {!led.data || !projects.data ? <Loading error={led.error} /> : (

@@ -61,3 +61,15 @@ describe('bill text: arrears brought forward', () => {
     expect(text).toContain('รวมทั้งสิ้น 10,228 บาท')
   })
 })
+
+describe('bill image: line wrapping', () => {
+  it('keeps short lines and wraps long ones on spaces', async () => {
+    const { wrapLine } = await import('../../src/lib/billImage')
+    const m = (s: string) => s.length * 10
+    expect(wrapLine(m, 'ค่าเช่า 4,000', 300)).toEqual(['ค่าเช่า 4,000'])
+    const out = wrapLine(m, 'โอนเข้า กสิกรไทย นาราแมนชั่น 123-4-56789-0', 200)
+    expect(out.length).toBeGreaterThan(1)
+    expect(out.join(' ')).toBe('โอนเข้า กสิกรไทย นาราแมนชั่น 123-4-56789-0')
+    expect(out.every((l) => m(l) <= 200 || !l.includes(' '))).toBe(true)
+  })
+})

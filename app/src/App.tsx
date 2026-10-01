@@ -96,7 +96,7 @@ export default function App() {
         {current === 'ตรวจสอบ' && <Audit />}
         {current === 'รายการทั้งหมด' && <AllRequests />}
         {current === 'โอน / เจ้าของ' && <Transfers />}
-        {current === 'ยอดบัญชี' && <Balances canCheck={['finance', 'ceo'].includes(profile.role)} />}
+        {current === 'ยอดบัญชี' && <Balances canCheck={['finance', 'ceo'].includes(profile.role)} role={profile.role} />}
         {current === 'ทะเบียนคนงาน' && <WorkersView profile={profile} />}
         {current === 'ลงเวลางาน' && (profile.role === 'worker' ? <CrewToday profile={profile} /> : <AttendanceManager profile={profile} />)}
         {current === 'ประวัติของฉัน' && <CrewHistory />}

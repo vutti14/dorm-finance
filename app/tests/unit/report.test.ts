@@ -6,7 +6,7 @@ import { monthTh, rollup, type NoiRow } from '../../src/views/ReportView'
 import { parseNoiDashboard } from '../../../scripts/noi-history'
 
 const row = (month: string, b: 'N' | 'P', rent: number, elec: number, water: number, source: NoiRow['source'] = 'ledger'): NoiRow => ({
-  month, building_id: b, source, revenue: rent + elec + water + 100, elec_billed: null, water_billed: null, elec_cost: null,
+  month, building_id: b, source, revenue: rent + elec + water + 100, other_income: null, other_expense: null, elec_billed: null, water_billed: null, elec_cost: null,
   water_cost: null, op_cost: null, rent_profit: rent, elec_margin: elec, water_margin: water, noi: rent + elec + water, capex: 0, deposits_net: 0,
 })
 

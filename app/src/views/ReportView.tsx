@@ -9,7 +9,7 @@ import { Loading, Stat, useAction } from '../components/ui'
 
 export interface NoiRow {
   month: string; building_id: 'N' | 'P'; source: 'history' | 'ledger'
-  revenue: number; elec_billed: number | null; water_billed: number | null; elec_cost: number | null; water_cost: number | null
+  revenue: number; other_income: number | null; other_expense: number | null; elec_billed: number | null; water_billed: number | null; elec_cost: number | null; water_cost: number | null
   op_cost: number | null; rent_profit: number; elec_margin: number; water_margin: number; noi: number; capex: number; deposits_net: number
 }
 type View = 'all' | 'N' | 'P'
@@ -24,7 +24,7 @@ const CAT_TH: Record<string, string> = {
   owner_draw: 'โอนให้เจ้าของ', owner_injection: 'เจ้าของเติมเงิน', owner_paid_expense: 'เจ้าของจ่ายแทน (ค่าไฟ กฟภ.)',
   deposit: 'รับเงินประกัน', deposit_refund: 'คืนเงินประกัน', petty_refill: 'เติมเงินสำรอง', staff_room: 'ค่าห้องพนักงาน (ไม่ใช่เงินสด)',
   welfare_housing: 'สวัสดิการที่พัก (ไม่ใช่เงินสด)', opening_balance: 'ยอดยกมา', adjustment: 'ปรับปรุง',
-  water_utility: 'บิลค่าน้ำประปา', elec_utility: 'บิลค่าไฟ กฟภ.',
+  water_utility: 'บิลค่าน้ำประปา', elec_utility: 'บิลค่าไฟ กฟภ.', other_income: 'รายได้อื่น', other_expense: 'รายจ่ายอื่น',
 }
 
 /** pure: sum NOI rows per month for a building or both */
@@ -35,7 +35,7 @@ export function rollup(rows: NoiRow[], view: View) {
   const byMonth = months.map((m) => {
     const list = pick(m)
     return { month: m, source: list.some((r) => r.source === 'history') ? 'history' : 'ledger',
-             revenue: s(list, 'revenue'), rent: s(list, 'rent_profit'), elec: s(list, 'elec_margin'), water: s(list, 'water_margin'),
+             revenue: round2(s(list, 'revenue') + s(list, 'other_income')), rent: s(list, 'rent_profit'), elec: s(list, 'elec_margin'), water: s(list, 'water_margin'),
              noi: s(list, 'noi'), capex: s(list, 'capex'), deposits: s(list, 'deposits_net') }
   })
   const tot = (k: 'revenue' | 'rent' | 'elec' | 'water' | 'noi' | 'capex') => round2(byMonth.reduce((a, r) => a + r[k], 0))
@@ -57,7 +57,7 @@ export default function NoiReport() {
   }, ['ledger_entries', 'bills', 'bill_rounds'], [from, to])
 
   if (!data.data) return <Loading error={data.error} />
-  const rows = data.data.filter((r) => r.source === 'history' || num(r.revenue) || num(r.op_cost) || num(r.elec_cost) || num(r.water_cost) || num(r.elec_billed))
+  const rows = data.data.filter((r) => r.source === 'history' || num(r.revenue) || num(r.other_income) || num(r.other_expense) || num(r.op_cost) || num(r.elec_cost) || num(r.water_cost) || num(r.elec_billed))
   const { byMonth, total } = rollup(rows, view)
   const n = byMonth.length || 1
   const hist = byMonth.filter((m) => m.source === 'history')
@@ -112,7 +112,7 @@ export default function NoiReport() {
         )}
       </div>
       <p className="muted">
-        เกณฑ์เงินสด เหมือนแดชบอร์ด NOI เดิม: รายได้ = เงินค่าห้องที่รับจริง (รวมยอดค้าง/ค่าปรับ) · กำไรค่าไฟ = ค่าไฟที่เรียกเก็บในบิล − บิล กฟภ. (รวมที่เจ้าของจ่ายแทน) ·
+        เกณฑ์เงินสด เหมือนแดชบอร์ด NOI เดิม: รายได้ = เงินค่าห้องที่รับจริง (รวมยอดค้าง/ค่าปรับ) + รายได้อื่น · กำไรค่าไฟ = ค่าไฟที่เรียกเก็บในบิล − บิล กฟภ. (รวมที่เจ้าของจ่ายแทน) ·
         กำไรค่าน้ำ = ค่าน้ำที่เรียกเก็บ − บิลประปา · ค่าใช้จ่ายร่วม (เงินเดือน ส่วนกลาง) แบ่งตามจำนวนห้อง (ตั้งค่าได้) · งบลงทุน เงินประกัน และค่าใช้จ่ายอสังหาฯ ไม่อยู่ใน NOI
         {hist.length > 0 && <> · * {hist.length} เดือนแรกมาจากสมุดบัญชีมือ (แดชบอร์ดเดิม)</>}
       </p>
@@ -142,11 +142,13 @@ function Detail({ rows }: { rows: NoiRow[] }) {
       <thead><tr><th></th>{rows.map((r) => <th key={r.month} className="n">{monthTh(r.month)}{r.source === 'history' ? ' *' : ''}</th>)}<th className="n">รวม</th></tr></thead>
       <tbody>
         {line('รายได้ค่าห้องที่รับจริง', (r) => num(r.revenue))}
+        {line('รายได้อื่น (ซักผ้า ตู้น้ำ ฯลฯ)', (r) => r.other_income)}
         {line('ค่าไฟที่เรียกเก็บ', (r) => r.elec_billed)}
         {line('ค่าน้ำที่เรียกเก็บ', (r) => r.water_billed)}
         {line('บิลค่าไฟ กฟภ.', (r) => r.elec_cost)}
         {line('บิลค่าน้ำประปา', (r) => r.water_cost)}
         {line('ค่าใช้จ่ายดำเนินงาน', (r) => r.op_cost)}
+        {line('รายจ่ายอื่น', (r) => r.other_expense)}
         {line('กำไรจากค่าห้อง', (r) => num(r.rent_profit), true)}
         {line('กำไรค่าไฟ', (r) => num(r.elec_margin))}
         {line('กำไรค่าน้ำ', (r) => num(r.water_margin))}
@@ -179,9 +181,9 @@ async function exportWorkbook(from: string, to: string, noi: NoiRow[]) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(noi.map((r) => ({
     'เดือน': r.month, 'อาคาร': BLD[r.building_id], 'ที่มา': r.source === 'history' ? 'สมุดมือ' : 'ระบบ',
-    'รายได้ค่าห้องที่รับจริง': num(r.revenue), 'ค่าไฟที่เรียกเก็บ': r.elec_billed == null ? '' : num(r.elec_billed),
+    'รายได้ค่าห้องที่รับจริง': num(r.revenue), 'รายได้อื่น': r.other_income == null ? '' : num(r.other_income), 'ค่าไฟที่เรียกเก็บ': r.elec_billed == null ? '' : num(r.elec_billed),
     'ค่าน้ำที่เรียกเก็บ': r.water_billed == null ? '' : num(r.water_billed), 'บิล กฟภ.': r.elec_cost == null ? '' : num(r.elec_cost),
-    'บิลประปา': r.water_cost == null ? '' : num(r.water_cost), 'ค่าใช้จ่ายดำเนินงาน': r.op_cost == null ? '' : num(r.op_cost),
+    'บิลประปา': r.water_cost == null ? '' : num(r.water_cost), 'ค่าใช้จ่ายดำเนินงาน': r.op_cost == null ? '' : num(r.op_cost), 'รายจ่ายอื่น': r.other_expense == null ? '' : num(r.other_expense),
     'กำไรค่าห้อง': num(r.rent_profit), 'กำไรค่าไฟ': num(r.elec_margin), 'กำไรค่าน้ำ': num(r.water_margin), 'NOI': num(r.noi),
     'งบลงทุน': num(r.capex), 'เงินประกันสุทธิ': num(r.deposits_net),
   }))), 'NOI')

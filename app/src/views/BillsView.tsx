@@ -1,6 +1,7 @@
 // บิลค่าห้อง — import Excel → validation report → issue → LINE text → receipts / penalties / adjustments / deposits.
 // Mirrors prototype VIEWS['บิลค่าห้อง']. All writes are RPCs; the table updates live for everyone.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase, rpc } from '../lib/supabase'
 import { useLive } from '../lib/live'
 import { fmt, fmtPhone, thaiDate, todayTH, daysBetween, round2 } from '../lib/format'
@@ -8,6 +9,7 @@ import type { RoundPayload } from '../lib/importer'
 import { computeRound, FLAG_TH, type MeterFlag, type RoundPreview } from '../lib/billing'
 import { billText, type BillView } from '../lib/billText'
 import { uploadPhoto } from '../lib/photos'
+import { billPng, shareOrDownload } from '../lib/billImage'
 import { num, numOrNull, type BillRow, type Profile, type Round } from '../lib/types'
 import { Loading, Modal, Stat, useAction, useToast } from '../components/ui'
 
@@ -278,8 +280,17 @@ function BillPanel({ b, R, canRecv, canPenalty, late, onClose }: {
         <button className="btn ghost sm" onClick={onClose}>ปิด</button>
       </div>
       <textarea rows={Math.min(18, text.split('\n').length + 1)} readOnly value={text} aria-label="ข้อความบิลสำหรับ LINE" />
+      {createPortal(
+        <div id="print-bill">
+          <h1>{text.split('\n')[0]}</h1>
+          {text.split('\n').slice(1).map((l, i) => <p key={i} className={/^รวมทั้งสิ้น/.test(l) ? 'line total' : 'line'}>{l || '\u00a0'}</p>)}
+        </div>, document.body)}
       <div className="row">
         <button className="btn" onClick={copy}>คัดลอกข้อความ ส่ง LINE ผู้เช่า</button>
+        <button className="btn ghost" disabled={busy} onClick={() => run(async () =>
+          shareOrDownload(await billPng(text), `bill-${b.rooms.code.replace(/[^\w-]/g, '_')}-${R.due_date}.png`, `บิลห้อง ${b.rooms.code}`),
+          (r) => r === 'shared' ? 'เลือก LINE แล้วส่งให้ผู้เช่าได้เลย' : 'บันทึกรูปบิลแล้ว — แนบในแชท LINE ได้')}>รูปบิล</button>
+        <button className="btn ghost" onClick={() => window.print()}>พิมพ์ / PDF</button>
         {b.tenant_phone && <span className="muted">โทร {fmtPhone(b.tenant_phone)}</span>}
       </div>
 

@@ -68,3 +68,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .live.off { background: var(--out); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* printable bill (บิลค่าห้อง → พิมพ์ / PDF): only the bill shows on paper */
+#print-bill { display: none; }
+@media print {
+  body { background: #fff !important; }
+  body > *:not(#print-bill) { display: none !important; }
+  #print-bill { display: block; padding: 18mm 16mm; font-size: 15pt; line-height: 1.6; color: #000; background: #fff; }
+  #print-bill h1 { font-size: 19pt; margin: 0 0 8pt; padding-bottom: 6pt; border-bottom: 2pt solid #17302B; }
+  #print-bill .line { margin: 0; white-space: pre-wrap; }
+  #print-bill .total { font-weight: 700; font-size: 17pt; margin: 6pt 0; }
+  @page { size: A5; margin: 0; }
+}
