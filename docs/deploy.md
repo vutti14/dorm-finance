@@ -11,6 +11,7 @@
    supabase functions deploy login --no-verify-jwt
    supabase functions deploy activate --no-verify-jwt
    supabase functions deploy admin-create-user
+   supabase functions deploy read-meter               # M4: AI อ่านเลขมิเตอร์จากรูป (ไม่ deploy ก็ได้ — พิมพ์เลขเองได้ตามปกติ)
    ```
 4. โหลดยอดยกมาและประวัติสมุด (ครั้งเดียว ใช้ connection string จาก Project settings → Database):
    `cd scripts && npm install && DATABASE_URL='postgresql://…' npx tsx import-opening.ts`
@@ -21,7 +22,10 @@
    select id, 'อาร์ต', '<เบอร์ 10 หลัก>', 'ceo' from auth.users where email = 'p<เบอร์>@dorm.internal';
    ```
    จากนั้นเข้าแอป → แท็บผู้ใช้งาน → "ออกรหัสใหม่" ให้ตัวเอง เพื่อตั้ง PIN ผ่านหน้า "ครั้งแรก หรือ ลืม PIN"
-6. ห้ามวาง service-role key ในแชทหรือในไฟล์ที่ commit เด็ดขาด เพราะ edge functions อ่านค่านี้จาก environment ของ Supabase เองอยู่แล้ว
+6. **AI อ่านมิเตอร์ (ไม่บังคับ)**: สร้าง API key ที่ console.anthropic.com แล้วตั้งเป็น secret ของ function เอง
+   ด้วยคำสั่ง `supabase secrets set ANTHROPIC_API_KEY=…` (พิมพ์ในเครื่องตัวเองเท่านั้น ห้ามวางในแชท/ไฟล์/หน้าเว็บ)
+   ถ้าอยากใช้โมเดลอื่นตั้ง `METER_AI_MODEL` ได้ (ค่าเริ่มต้น claude-opus-5-5) · ถ้ายังไม่ตั้ง key ปุ่มถ่ายรูปยังใช้ได้ แค่ AI ไม่อ่านให้
+7. ห้ามวาง service-role key ในแชทหรือในไฟล์ที่ commit เด็ดขาด เพราะ edge functions อ่านค่านี้จาก environment ของ Supabase เองอยู่แล้ว
 
 ## 2. Cloudflare Pages
 

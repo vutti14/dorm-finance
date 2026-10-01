@@ -3,7 +3,7 @@
 ระบบบิลค่าห้องและเงินของหอพัก 2 แห่งในพิษณุโลก ใช้แทนสมุดมือและใบสำคัญจ่ายกระดาษ ทีม 6 บทบาททำงานพร้อมกันได้จากมือถือของแต่ละคน
 และเห็นการเปลี่ยนแปลงของกันและกันภายในไม่กี่วินาที สเปกเต็มอยู่ใน `SPEC.md` (เก็บไว้นอก git จนกว่า repo จะเป็น Private)
 
-**สถานะ: M1 (บิลค่าห้อง) + M2 (ใบเบิก/อนุมัติ/จ่าย/ตรวจ/เงินเดือน/โอน) + M3 (ทีมช่าง: ลงเวลา ส่งงาน ขอเบิก ออฟไลน์)** — ผลทดสอบและคำถามใน [M1](docs/M1-report.md) · [M2](docs/M2-report.md) · [M3](docs/M3-report.md)
+**สถานะ: M1 (บิลค่าห้อง) + M2 (ใบเบิก/อนุมัติ/จ่าย/ตรวจ/เงินเดือน/โอน) + M3 (ทีมช่าง: ลงเวลา ส่งงาน ขอเบิก ออฟไลน์) + M4 (จดมิเตอร์ในแอป + AI อ่านเลขจากรูป)** — ผลทดสอบและคำถามใน [M1](docs/M1-report.md) · [M2](docs/M2-report.md) · [M3](docs/M3-report.md) · [M4](docs/M4-report.md)
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@
 ```bash
 # 1) ฐานข้อมูล (ต้องมี Docker + Supabase CLI)
 supabase start                      # ใช้ migrations + config.toml ใน /supabase
-supabase functions serve            # login / activate / admin-create-user
+supabase functions serve            # login / activate / admin-create-user / read-meter
 
 # 2) ยอดยกมาและประวัติสมุด ม.ค.–ก.ย. (ทำครั้งเดียว ต้องมี /reference)
 cd scripts && npm install && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npx tsx import-opening.ts
@@ -44,8 +44,8 @@ npm run typecheck && npm run build
 
 ```
 app/                    หน้าเว็บ (views = แท็บตาม prototype, lib = importer / billing / billText)
-supabase/migrations/    schema · security (RLS, audit, ledger ห้ามแก้) · billing RPC · admin/ผู้เช่า/แจ้งเตือน · seed · storage · money (M2) · crew (M3)
-supabase/functions/     login · activate · admin-create-user
+supabase/migrations/    schema · security (RLS, audit, ledger ห้ามแก้) · billing RPC · admin/ผู้เช่า/แจ้งเตือน · seed · storage · money (M2) · crew (M3) · meters (M4)
+supabase/functions/     login · activate · admin-create-user · read-meter (AI อ่านมิเตอร์)
 scripts/                import-opening.ts (ยอดยกมา + ประวัติสมุด) · test-db.sh
 reference/              ไฟล์จากเจ้าของ (prototype, แบบฟอร์ม Excel, CSV) — ไม่อยู่ใน git จนกว่า repo จะเป็น Private
 ```

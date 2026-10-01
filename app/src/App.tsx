@@ -18,6 +18,7 @@ import { Balances, Transfers } from './views/MoneyViews'
 import CeoWatch from './components/CeoWatch'
 import { CrewHistory, CrewToday } from './views/CrewViews'
 import AttendanceManager from './views/AttendanceManager'
+import MeterView from './views/MeterView'
 
 // Tab names exactly as SPEC §7 / prototype. Tabs whose milestone is not built yet are hidden for now.
 type Tab = { name: string; m: 1 | 2 | 3 | 4 }
@@ -31,7 +32,7 @@ const MENU: Record<Role, Tab[]> = {
         T('ทะเบียนคนงาน', 2), T('โอน / เจ้าของ', 2), T('ยอดบัญชี', 2), T('รายการทั้งหมด', 2), T('จดมิเตอร์', 4), T('ผู้ใช้งาน'), T('ตั้งค่า'), T('สิทธิ์')],
   worker: [T('ลงเวลางาน', 3), T('ประวัติของฉัน', 3)],
 }
-const BUILT = 3
+const BUILT = 4
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -99,6 +100,7 @@ export default function App() {
         {current === 'ทะเบียนคนงาน' && <WorkersView profile={profile} />}
         {current === 'ลงเวลางาน' && (profile.role === 'worker' ? <CrewToday profile={profile} /> : <AttendanceManager profile={profile} />)}
         {current === 'ประวัติของฉัน' && <CrewHistory />}
+        {current === 'จดมิเตอร์' && <MeterView profile={profile} />}
       </main>
       {later.length > 0 && tabs.length > 0 && (
         <p className="muted mt-6">ระยะถัดไปจะเพิ่มแท็บ: {later.map((t) => t.name).join(' · ')}</p>
@@ -128,12 +130,16 @@ function Tabs({ profile, tabs, current, onPick }: { profile: Profile; tabs: Tab[
     if (names.includes('ลงเวลางาน') && role !== 'worker') {
       out['ลงเวลางาน'] = (await supabase.from('request_lines').select('id', { count: 'exact', head: true }).eq('status', 'claimed')).count || 0
     }
+    if (names.includes('จดมิเตอร์')) {  // occupied rooms still without an electricity reading in the draft round
+      out['จดมิเตอร์'] = (await supabase.from('bills').select('id, bill_rounds!inner(status), rooms!inner(status)', { count: 'exact', head: true })
+        .eq('bill_rounds.status', 'draft').eq('rooms.status', 'occupied').contains('flags', ['missing_elec'])).count || 0
+    }
     if (names.includes('ทะเบียนคนงาน')) {
       const { data } = await supabase.rpc('workers_complete')
       out['ทะเบียนคนงาน'] = ((data || []) as { missing: string[]; active: boolean }[]).filter((w) => w.active && w.missing.length).length
     }
     return out
-  }, ['requests', 'workers', 'request_lines'], [profile.id, tabs.map((t) => t.name).join()])
+  }, ['requests', 'workers', 'request_lines', 'bills'], [profile.id, tabs.map((t) => t.name).join()])
   const high = (alerts || []).filter((a) => a.level === 'high').length
   return (
     <nav className="tabs" role="tablist">
