@@ -1,4 +1,4 @@
-// ภาพรวม: round KPIs per building, alerts, wallet balances, owner draw availability, owner account. Full NOI dashboard = M5.
+// ภาพรวม: round KPIs per building, alerts, wallet balances, owner draw availability, owner account. NOI report (M5) below the round.
 import { supabase } from '../lib/supabase'
 import { useLive } from '../lib/live'
 import { fmt, round2 } from '../lib/format'
@@ -6,6 +6,7 @@ import { num, type Profile, type Round } from '../lib/types'
 import { Loading, Stat } from '../components/ui'
 import { useAlerts } from './AlertsView'
 import { OwnerAccount } from './MoneyViews'
+import NoiReport from './ReportView'
 
 interface Summary {
   building_id: 'N' | 'P'; billed_rooms: number; vacant_rooms: number; open_rooms: number; closed_rooms: number
@@ -62,6 +63,8 @@ export default function OverviewView({ profile }: { profile: Profile }) {
           </div>
         </div>
       )}
+
+      {money && <NoiReport />}
 
       <div className="panel">
         <h2>แจ้งเตือน {alerts.data?.length ?? '…'} เรื่อง</h2>

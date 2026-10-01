@@ -20,11 +20,12 @@ export default function SettingsView({ profile }: { profile: Profile }) {
       supabase.rpc('pc_opening_amount'),
     ])
     const get = (k: string) => (settings || []).find((x) => x.key === k)?.value as Record<string, number> | undefined
-    return { rates: get('rates'), reserve: get('repair_reserve')?.amount ?? 50000, buildings: (buildings || []) as Building[], pcOpening: pc == null ? null : Number(pc) }
+    return { rates: get('rates'), reserve: get('repair_reserve')?.amount ?? 50000, split: get('shared_split'), buildings: (buildings || []) as Building[], pcOpening: pc == null ? null : Number(pc) }
   }, ['ledger_entries'])
 
   const [rates, setRates] = useState({ elec: '', water: '', pen_day: '', pen_max: '' })
   const [reserve, setReserve] = useState('')
+  const [split, setSplit] = useState({ N: '', P: '' })
   const [pcAmt, setPcAmt] = useState('')
   const [pcReason, setPcReason] = useState('')
   const [bld, setBld] = useState<Record<string, Building>>({})
@@ -33,6 +34,7 @@ export default function SettingsView({ profile }: { profile: Profile }) {
     const r = s.data.rates || {}
     setRates({ elec: String(r.elec ?? 8), water: String(r.water ?? 30), pen_day: String(r.pen_day ?? 100), pen_max: String(r.pen_max ?? 3100) })
     setReserve(String(s.data.reserve))
+    setSplit({ N: String(s.data.split?.N ?? 32), P: String(s.data.split?.P ?? 38) })
     setBld(Object.fromEntries(s.data.buildings.map((b) => [b.id, b])))
   }, [s.data])
 
@@ -52,12 +54,17 @@ export default function SettingsView({ profile }: { profile: Profile }) {
           <label className="muted">สำรองซ่อม (บาท)<br />
             <input className="inp" type="number" inputMode="decimal" style={{ width: 120 }} disabled={!canEdit} value={reserve} onChange={(e) => setReserve(e.target.value)} />
           </label>
+          <label className="muted">แบ่งค่าใช้จ่ายร่วมในรายงาน NOI (จำนวนห้อง นารา : ปรายดาว)<br />
+            <input className="inp" type="number" inputMode="numeric" style={{ width: 70 }} disabled={!canEdit} value={split.N} onChange={(e) => setSplit({ ...split, N: e.target.value })} /> :{' '}
+            <input className="inp" type="number" inputMode="numeric" style={{ width: 70 }} disabled={!canEdit} value={split.P} onChange={(e) => setSplit({ ...split, P: e.target.value })} />
+          </label>
         </div>
         {canEdit && (
           <div className="row">
             <button className="btn" disabled={busy} onClick={() => run(async () => {
               await rpc('update_setting', { p_key: 'rates', p_value: { elec: num(rates.elec), water: num(rates.water), pen_day: num(rates.pen_day), pen_max: num(rates.pen_max) } })
               await rpc('update_setting', { p_key: 'repair_reserve', p_value: { amount: num(reserve) } })
+              await rpc('update_setting', { p_key: 'shared_split', p_value: { N: num(split.N), P: num(split.P) } })
             }, 'บันทึกอัตราแล้ว')}>บันทึก</button>
           </div>
         )}

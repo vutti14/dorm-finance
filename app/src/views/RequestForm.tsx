@@ -9,7 +9,9 @@ import { Loading, useAction } from '../components/ui'
 
 export interface WorkerRow { id: string; full_name: string; kind: string; daily_rate: number; phone: string | null; national_id: string | null; has_national_id: boolean; id_card_path: string | null; is_team_lead: boolean; active: boolean; missing: string[] }
 interface Pick { on: boolean; project_id: string; work_type: string; room_code: string }
-interface Mat { description: string; amount: string; project_id: string; work_type: string }
+interface Mat { description: string; amount: string; project_id: string; work_type: string; utility?: '' | 'water' | 'elec' }
+// a waterworks / PEA bill is tagged so the NOI report can work out the water / electricity margin (M5)
+const UTILITY_TH = { '': 'ค่าใช้จ่ายทั่วไป', water: 'บิลค่าน้ำประปา', elec: 'บิลค่าไฟ กฟภ.' } as const
 
 export const workerMissing = (w: WorkerRow) => w.missing
 
@@ -139,12 +141,18 @@ export default function RequestForm({ onSent }: { onSent: () => void }) {
 
       <div className="panel">
         <h2>ค่าใช้จ่ายส่วนกลาง</h2>
-        <p className="muted">แยกทุกรายการ + ถ่ายใบเสร็จ 1 ใบต่อ 1 รายการ ไม่รับยอดก้อน</p>
+        <p className="muted">แยกทุกรายการ + ถ่ายใบเสร็จ 1 ใบต่อ 1 รายการ ไม่รับยอดก้อน · บิลค่าน้ำประปา / ค่าไฟ กฟภ. ให้เลือกประเภทและอาคาร (ใช้คำนวณกำไรค่าน้ำ/ค่าไฟ)</p>
         {cmn.map((m, i) => (
           <div className="row" key={i}>
             <input className="inp" style={{ flex: 1, minWidth: 150 }} placeholder="รายการ" value={m.description} onChange={(e) => setCmn(cmn.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
             <input className="inp" type="number" inputMode="decimal" style={{ width: 100 }} placeholder="บาท" value={m.amount} onChange={(e) => setCmn(cmn.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
             <ProjSel value={m.project_id} onChange={(v) => setCmn(cmn.map((x, j) => j === i ? { ...x, project_id: v } : x))} projects={P} />
+            <select className="inp" value={m.utility || ''} aria-label="ประเภทค่าใช้จ่าย"
+                    onChange={(e) => setCmn(cmn.map((x, j) => j === i ? { ...x, utility: e.target.value as Mat['utility'],
+                      project_id: e.target.value && !['N', 'P'].includes(x.project_id) ? 'N' : x.project_id } : x))}>
+              {(Object.keys(UTILITY_TH) as (keyof typeof UTILITY_TH)[]).map((k) => <option key={k} value={k}>{UTILITY_TH[k]}</option>)}
+            </select>
+            {m.utility && !['N', 'P'].includes(m.project_id) && <span className="flag">บิลค่าน้ำ/ไฟ ต้องเลือกอาคาร</span>}
           </div>
         ))}
         <div className="row">
@@ -158,7 +166,7 @@ export default function RequestForm({ onSent }: { onSent: () => void }) {
                   onClick={() => run(async () => {
                     const r = await rpc<{ no: number }>('submit_request', { payload: {
                       type: 'common', work_date: todayTH(),
-                      lines: cmnLines.map((m) => ({ description: m.description.trim(), amount: Number(m.amount), project_id: m.project_id, work_type: 'routine' })),
+                      lines: cmnLines.map((m) => ({ description: m.description.trim(), amount: Number(m.amount), project_id: m.project_id, work_type: 'routine', utility: m.utility || null })),
                       attachments: receipts.map((path) => ({ kind: 'receipt', path })),
                     } })
                     setCmn([]); setReceipts([])

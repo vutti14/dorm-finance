@@ -3,10 +3,12 @@
 // Loads:
 //   reference/opening.json            wallet opening balances at 2026-09-30 + owner-account opening figures
 //   reference/history/*.csv           Jan–Sep 2026 handwritten books → ledger_history (read-only, never ledger_entries)
+//   reference/NOI-dashboard.html      Jan–Sep 2026 monthly NOI per building → noi_history (M5 report history)
 // Safe to re-run: skips anything already loaded.
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import pg from 'pg'
+import { parseNoiDashboard } from './noi-history'
 
 const argRef = process.argv.indexOf('--reference')
 const REF = resolve(argRef > 0 ? process.argv[argRef + 1] : resolve(__dirname, '../reference'))
@@ -89,6 +91,20 @@ async function main() {
         }
         console.log(`${file}: ${k} rows → ledger_history (${book})`)
       }
+    }
+    // ---- NOI history (M5)
+    const nh = resolve(REF, 'NOI-dashboard.html')
+    const [{ c: hc }] = (await db.query(`select count(*)::int c from noi_history`)).rows
+    if (hc > 0) console.log(`noi_history already has ${hc} rows — skipped`)
+    else if (!existsSync(nh)) console.log('no NOI-dashboard.html — skipped NOI history')
+    else {
+      const rows = parseNoiDashboard(readFileSync(nh, 'utf8'))
+      for (const r of rows) {
+        await db.query(`insert into noi_history (month, building_id, revenue, cost, elec_margin, water_margin, capex, deposits_net)
+                        values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [r.month, r.building_id, r.revenue, r.cost, r.elec_margin, r.water_margin, r.capex, r.deposits_net])
+      }
+      console.log(`NOI-dashboard.html: ${rows.length} rows → noi_history`)
     }
     await db.query('commit')
   } catch (e) {
