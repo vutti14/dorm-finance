@@ -42,12 +42,13 @@ export interface BillRow {
   room_id: string
   tenant_name: string | null
   tenant_phone: string | null
-  status: 'open' | 'closed' | 'vacant' | 'welfare'
+  status: 'open' | 'closed' | 'vacant' | 'welfare' | 'carried'
   rent: number
   elec_prev: number | null; elec_curr: number | null; elec_units: number | null; elec_rate: number | null; elec_amount: number
   water_prev: number | null; water_curr: number | null; water_units: number | null; water_rate: number | null; water_amount: number
   water_is_flat: boolean
   service: number; discount: number; penalty: number; carry_in: number; items_total: number; paid: number; total: number
+  carry_note?: string | null
   flags: string[]
   rooms: { code: string; building_id: BuildingId; status: string; base_rent: number }
   bill_items: { description: string; amount: number; source: string; reason: string | null }[]

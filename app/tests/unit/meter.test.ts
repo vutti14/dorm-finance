@@ -47,3 +47,17 @@ describe('AI reading checks', () => {
     expect(base64(bytes)).toBe(Buffer.from(bytes).toString('base64'))
   })
 })
+
+describe('bill text: arrears brought forward', () => {
+  it('names the round the unpaid amount came from', async () => {
+    const { billText } = await import('../../src/lib/billText')
+    const text = billText({
+      code: 'B201', building: 'P', status: 'open', tenant: null, rent: 4000,
+      elec: { prev: 1100, curr: 1180, units: 80, rate: 8, amount: 640 },
+      water: { prev: null, curr: null, units: null, rate: 30, amount: 150, flat: true },
+      service: 0, discount: 0, items: [], carryIn: 5438, carryNote: 'ต.ค. 69', total: 10228,
+    }, { label: 'พ.ย. 69', due_date: '2026-11-05', names: {}, bank: {}, contact: null }, 0)
+    expect(text).toContain('ค้างชำระยกมา (รอบ ต.ค. 69) 5,438')
+    expect(text).toContain('รวมทั้งสิ้น 10,228 บาท')
+  })
+})

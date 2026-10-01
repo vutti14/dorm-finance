@@ -40,6 +40,8 @@ describe.skipIf(!URL)('meters (M4)', () => {
     ])
     const r = (await one('pao', `select import_round($1::jsonb) r`, [JSON.stringify(p)])).r
     await one('nui', `select issue_round($1)`, [r.round_id])
+    // everyone paid round 1, so these tests are about meters only (carry-forward has its own file)
+    await su(`update bills set paid = total, status = 'closed' where round_id = $1 and status = 'open'`, [r.round_id])
     for (const x of await su(`select id, code from rooms`)) R[x.code] = x.id
   })
   afterAll(async () => { await pool?.end() })

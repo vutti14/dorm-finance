@@ -5,7 +5,7 @@ import type { BuildingId } from './importer'
 export interface BillView {
   code: string
   building: BuildingId
-  status: 'open' | 'closed' | 'vacant' | 'welfare'
+  status: 'open' | 'closed' | 'vacant' | 'welfare' | 'carried'
   tenant: string | null
   rent: number
   elec: { prev: number | null; curr: number | null; units: number | null; rate: number; amount: number }
@@ -15,6 +15,7 @@ export interface BillView {
   items: { description: string; amount: number }[]
   penalty?: number
   carryIn: number
+  carryNote?: string | null   // rounds the arrears came from, e.g. "ต.ค. 69"
   total: number
 }
 
@@ -45,7 +46,7 @@ export function billText(b: BillView, r: RoundInfo, paid: number): string {
   for (const i of b.items) L.push(`${i.description} ${fmt(i.amount)}`)
   if (b.discount) L.push(`ส่วนลด -${fmt(b.discount)}`)
   if (b.penalty) L.push(`ค่าปรับชำระล่าช้า ${fmt(b.penalty)}`)
-  if (b.carryIn) L.push(`ค้างชำระยกมา ${fmt(b.carryIn)}`)
+  if (b.carryIn) L.push(`ค้างชำระยกมา${b.carryNote ? ` (รอบ ${b.carryNote})` : ''} ${fmt(b.carryIn)}`)
   L.push('', `รวมทั้งสิ้น ${fmt(b.total)} บาท`)
   if (paid) L.push(`ชำระแล้ว ${fmt(paid)} · คงเหลือ ${fmt(Math.max(0, round2(b.total - paid)))} บาท`)
   if (b.status === 'welfare') {

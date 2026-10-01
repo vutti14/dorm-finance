@@ -20,7 +20,7 @@ function toView(b: BillRow): BillView {
     rent: num(b.rent),
     elec: { prev: numOrNull(b.elec_prev), curr: numOrNull(b.elec_curr), units: numOrNull(b.elec_units), rate: num(b.elec_rate), amount: num(b.elec_amount) },
     water: { prev: numOrNull(b.water_prev), curr: numOrNull(b.water_curr), units: numOrNull(b.water_units), rate: num(b.water_rate), amount: num(b.water_amount), flat: b.water_is_flat },
-    service: num(b.service), discount: num(b.discount), penalty: num(b.penalty), carryIn: num(b.carry_in), total: num(b.total),
+    service: num(b.service), discount: num(b.discount), penalty: num(b.penalty), carryIn: num(b.carry_in), carryNote: b.carry_note, total: num(b.total),
     items: (b.bill_items || []).map((i) => ({ description: i.description, amount: num(i.amount) })),
   }
 }
@@ -73,7 +73,7 @@ export default function BillsView({ profile }: { profile: Profile }) {
   const late = R ? Math.max(0, daysBetween(R.due_date, todayTH())) : 0
   const blocking = all.filter((b) => b.rooms.status === 'occupied' && b.flags.includes('missing_elec'))
   const flagged = all.filter((b) => b.flags.length)
-  const order: Record<string, number> = { open: 0, welfare: 1, closed: 1, vacant: 2 }
+  const order: Record<string, number> = { open: 0, welfare: 1, closed: 1, carried: 1, vacant: 2 }
   const sorted = [...B].sort((a, b) => (b.flags.length ? 1 : 0) - (a.flags.length ? 1 : 0) || order[a.status] - order[b.status] || a.rooms.code.localeCompare(b.rooms.code, 'th', { numeric: true }))
   const openBill = all.find((b) => b.id === open)
 
@@ -185,6 +185,7 @@ function statusText(b: BillRow, R: Round, late: number) {
   if (b.status === 'welfare') return <span className="muted">สวัสดิการพนักงาน (ไม่รับเงินจริง)</span>
   if (b.status === 'vacant') return <span className="muted">ว่าง</span>
   if (b.status === 'closed') return <span className="ok">ปิดแล้ว ✓</span>
+  if (b.status === 'carried') return <span className="muted">ยกไปบิลรอบถัดไป</span>
   if (num(b.paid) > 0) return <span className="flag">จ่ายบางส่วน</span>
   if (R.status === 'draft') return <span className="muted">เตรียมบิล</span>
   return late > 0 ? <span className="flag">ค้าง {late} วัน</span> : <span className="muted">รอชำระ</span>
@@ -316,7 +317,7 @@ function BillPanel({ b, R, canRecv, canPenalty, late, onClose }: {
         </>
       )}
 
-      {canRecv && R.status !== 'closed' && b.status !== 'vacant' && (
+      {canRecv && R.status !== 'closed' && b.status !== 'vacant' && b.status !== 'carried' && (
         <>
           <h3>ปรับบิล (เก็บเพิ่ม + / ส่วนลด −)</h3>
           <div className="row">
