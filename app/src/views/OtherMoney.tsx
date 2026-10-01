@@ -32,6 +32,10 @@ export default function OtherMoney({ role }: { role: Role }) {
     if (error) throw error
     return data as Kind[]
   }, ['money_kinds'])
+  const cap = useLive<number>(async () => {
+    const { data } = await supabase.from('settings').select('value').eq('key', 'other_expense_cap').maybeSingle()
+    return Number((data?.value as { amount?: number } | null)?.amount ?? 3000)
+  }, ['settings'])
   const list = useLive<Entry[]>(async () => {
     const { data, error } = await supabase.from('ledger_entries')
       .select('id, on_date, wallet_id, amount, category, project_id, kind_id, photo_path, reverses, description')
@@ -43,7 +47,9 @@ export default function OtherMoney({ role }: { role: Role }) {
   if (!kinds.data || !list.data) return <Loading error={kinds.error || list.error} />
   const mine = kinds.data.filter((k) => k.direction === dir)
   const reversed = new Set(list.data.filter((e) => e.reverses).map((e) => e.reverses))
-  const ok = f.kind && Number(f.amount) > 0 && (dir === 'income' || f.photo.length > 0)
+  const capAmt = cap.data ?? 3000
+  const overCap = dir === 'expense' && Number(f.amount) > capAmt
+  const ok = f.kind && Number(f.amount) > 0 && !overCap && (dir === 'income' || f.photo.length > 0)
 
   return (
     <div className="panel">
@@ -96,7 +102,8 @@ export default function OtherMoney({ role }: { role: Role }) {
               setF({ ...empty, wallet: f.wallet, project: f.project })
             }, `บันทึก${DIR_TH[dir]}แล้ว`)}>บันทึก</button>
           </div>
-          {dir === 'expense' && <p className="muted">รายจ่ายก้อนใหญ่หรือจ่ายคนงาน/ร้านค้า ให้ใช้ใบเบิกตามเดิม (มีอนุมัติ) · ช่องนี้สำหรับรายจ่ายเล็ก ๆ ที่ไม่ผ่านใบเบิก</p>}
+          {overCap && <p className="flag">เกิน {fmt(capAmt)} บาท — ทำใบเบิกแทน (มีผู้อนุมัติ)</p>}
+          {dir === 'expense' && <p className="muted">บันทึกตรงได้ไม่เกิน {fmt(capAmt)} บาทต่อรายการ · เกินกว่านั้นหรือจ่ายคนงาน/ร้านค้า ให้ใช้ใบเบิก (มีอนุมัติ)</p>}
         </>
       )}
 

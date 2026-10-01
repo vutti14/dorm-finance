@@ -31,13 +31,26 @@ describe.skipIf(!URL)('other income / expenses', () => {
     const laundry = await kind('income', 'ซักผ้า'), net = await kind('expense', 'ค่าอินเทอร์เน็ต')
     await rec('pao', ['income', laundry, 'PC', 'N', 600, null, 'เดือนนี้', null])
     await expect(rec('nui', ['expense', net, 'PC', 'SH', 500, null, null, null])).rejects.toThrow(/ถ่ายรูปใบเสร็จ/)
-    await expect(rec('nui', ['expense', net, 'PC', 'SH', 5000, null, null, 'r/x.jpg'])).rejects.toThrow(/ไม่พอ/)
+    await expect(rec('nui', ['expense', net, 'PC', 'SH', 2500, null, null, 'r/x.jpg'])).rejects.toThrow(/ไม่พอ/)
     await expect(rec('nui', ['expense', laundry, 'PC', 'SH', 50, null, null, 'r/x.jpg'])).rejects.toThrow(/ไม่ใช่รายจ่าย/)
     await expect(rec('nui', ['income', laundry, 'PC', 'WAL', 50, null, null, null])).rejects.toThrow(/ใช้ใบเบิก/)
     await expect(rec('kwang', ['income', laundry, 'PC', 'N', 50, null, null, null])).rejects.toThrow(/สิทธิ์/)
     await rec('nui', ['expense', net, 'PC', 'SH', 700, null, null, 'r/net.jpg'])
     const [{ b }] = await su(`select wallet_balance('PC') b`)
     expect(Number(b)).toBe(1000 + 600 - 700)
+  })
+
+  it('direct expenses are capped at 3,000 (setting); larger ones need a request', async () => {
+    const net = await kind('expense', 'ค่าอินเทอร์เน็ต')
+    await su(`insert into ledger_entries (on_date, wallet_id, amount, category, description) values (today_th() - 40, 'A3', 50000, 'opening_balance', 't')`)
+    await expect(rec('nui', ['expense', net, 'A3', 'SH', 3000.01, null, null, 'r/x.jpg'])).rejects.toThrow(/เกิน 3,000 บาท ต้องทำใบเบิก/)
+    const id = await rec('nui', ['expense', net, 'A3', 'SH', 3000, null, null, 'r/x.jpg'])
+    await one('kwang', `select reverse_other_money($1, 'ทดสอบเพดาน')`, [id])
+    await expect(as('pao', `select update_setting('other_expense_cap', '{"amount": 5000}')`)).rejects.toThrow(/สิทธิ์/)
+    await one('kwang', `select update_setting('other_expense_cap', '{"amount": 5000}')`)
+    const id2 = await rec('nui', ['expense', net, 'A3', 'SH', 4500, null, null, 'r/x.jpg'])
+    await one('kwang', `select reverse_other_money($1, 'ทดสอบเพดาน')`, [id2])
+    await one('kwang', `select update_setting('other_expense_cap', '{"amount": 3000}')`)
   })
 
   it('a mistake is reversed with a reason (once), never edited', async () => {

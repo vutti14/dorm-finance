@@ -1,36 +1,82 @@
-# Deploy (Supabase + Cloudflare Pages)
+# ขึ้นระบบจริง (Supabase + Cloudflare Pages)
 
-## 1. Supabase (สร้าง project ชื่อ `dorm-finance`, region Singapore)
+ทั้งหมดประมาณ 30–45 นาที ทำจากคอมพิวเตอร์ (บางขั้นทำบนมือถือได้) · **ห้ามวางรหัส/คีย์ใด ๆ ในแชท** — ใส่เฉพาะในหน้าตั้งค่าของ Supabase / GitHub / Cloudflare เท่านั้น
 
-1. **Auth → Providers → Email**: เปิด Email, ปิด "Confirm email"
-2. **Auth → Settings**: ปิด "Allow new users to sign up" และตั้ง password ขั้นต่ำ 6 ตัว
-3. ติดตั้ง Supabase CLI แล้วรัน:
-   ```bash
-   supabase link --project-ref <ref>
-   supabase db push                                   # migrations ทั้งหมด
-   supabase functions deploy login --no-verify-jwt
-   supabase functions deploy activate --no-verify-jwt
-   supabase functions deploy admin-create-user
-   supabase functions deploy read-meter               # M4: AI อ่านเลขมิเตอร์จากรูป (ไม่ deploy ก็ได้ — พิมพ์เลขเองได้ตามปกติ)
-   ```
-4. โหลดยอดยกมาและประวัติสมุด (ครั้งเดียว ใช้ connection string จาก Project settings → Database):
-   `cd scripts && npm install && DATABASE_URL='postgresql://…' npx tsx import-opening.ts`
-5. **บัญชีแรก (CEO)**: Auth → Users → Add user → email `p<เบอร์>@dorm.internal`, ตั้งรหัสชั่วคราว, ติ๊ก Auto confirm
-   แล้วรันใน SQL editor:
+## 0. ก่อนเริ่ม: เปลี่ยน repo เป็น Private
+
+GitHub → `vutti14/dorm-finance` → Settings → General → Danger Zone → **Change visibility → Private**
+(ต้องทำก่อน เพราะไฟล์ยอดยกมา/ประวัติสมุดมีชื่อคนและยอดเงินจริง) — เสร็จแล้วบอก Claude ให้ commit โฟลเดอร์ `reference/` เข้า repo
+
+## 1. สร้าง Supabase project
+
+1. supabase.com → New project · ชื่อ `dorm-finance` · Region **Southeast Asia (Singapore)** · ตั้ง Database password (เก็บในที่ปลอดภัย)
+2. **Authentication → Sign In / Providers → Email**: เปิด Email · **ปิด "Confirm email"**
+3. **Authentication → Sign In / Providers**: **ปิด "Allow new users to sign up"** (บัญชีสร้างผ่านแท็บผู้ใช้งานเท่านั้น) · Password minimum length = 6
+
+## 2. ใส่ secret ใน GitHub (ครั้งเดียว)
+
+GitHub → repo → Settings → Secrets and variables → **Actions → New repository secret** ใส่ 3–4 ตัวนี้
+
+| ชื่อ | เอามาจาก |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | supabase.com → รูปโปรไฟล์ → Account preferences → **Access Tokens** → Generate new token |
+| `SUPABASE_PROJECT_REF` | รหัสใน URL ของ project: `supabase.com/dashboard/project/`**`abcdxyz…`** |
+| `SUPABASE_DB_URL` | project → ปุ่ม **Connect** → แบบ **Session pooler** → คัดลอก แล้วแทน `[YOUR-PASSWORD]` ด้วย Database password |
+| `ANTHROPIC_API_KEY` | (ไม่บังคับ) console.anthropic.com → API Keys — เปิดให้ AI อ่านเลขมิเตอร์ |
+
+ใช้ **Session pooler** เท่านั้น (แบบ Direct connection ใช้จาก GitHub ไม่ได้)
+
+## 3. กดขึ้นระบบ
+
+GitHub → repo → **Actions → deploy → Run workflow** (เลือก branch ที่จะขึ้นระบบ)
+- ครั้งแรก ติ๊ก **"โหลดยอดยกมา + ประวัติ ม.ค.–ก.ย."** (ต้องทำข้อ 0 และ commit `reference/` แล้ว — ถ้ายังเป็น public ระบบจะไม่ยอมโหลด)
+- ระบบจะ: สร้างตารางทั้งหมด (migrations) → ติดตั้ง login / activate / admin-create-user / read-meter → ตั้งคีย์ AI → โหลดยอดยกมา
+- กดซ้ำได้ทุกครั้งที่มีเวอร์ชันใหม่ (ไม่โหลดข้อมูลซ้ำ ไม่ลบข้อมูลเดิม)
+
+## 4. Cloudflare Pages (หน้าเว็บ)
+
+1. dash.cloudflare.com → Workers & Pages → Create → **Pages → Connect to Git** → เลือก `dorm-finance`
+2. Production branch: `main` (หรือ branch ที่จะใช้) · Root directory **`app`** · Build command **`npm ci && npm run build`** · Build output **`dist`**
+3. Environment variables:
+   - `VITE_SUPABASE_URL` = Supabase → Project Settings → Data API → **Project URL**
+   - `VITE_SUPABASE_ANON_KEY` = Project Settings → API Keys → **anon / publishable** (ห้ามใช้ service_role)
+4. Deploy → ได้ลิงก์ `https://dorm-finance-xxx.pages.dev` (ผูกโดเมนของตัวเองภายหลังได้)
+5. Supabase → Authentication → URL Configuration → **Site URL** = ลิงก์ Pages
+
+## 5. บัญชีแรก (CEO)
+
+1. Supabase → Authentication → Users → **Add user → Create new user**
+   - Email: `p<เบอร์ 10 หลัก>@dorm.internal` เช่น `p0812345678@dorm.internal`
+   - Password: **PIN 6 หลัก** ที่จะใช้เข้าแอป · ติ๊ก **Auto Confirm User**
+2. Supabase → SQL Editor → รัน (แก้ชื่อ/เบอร์):
    ```sql
    insert into profiles (id, display_name, phone, role)
-   select id, 'อาร์ต', '<เบอร์ 10 หลัก>', 'ceo' from auth.users where email = 'p<เบอร์>@dorm.internal';
+   select id, 'อาร์ต', '0812345678', 'ceo' from auth.users where email = 'p0812345678@dorm.internal';
    ```
-   จากนั้นเข้าแอป → แท็บผู้ใช้งาน → "ออกรหัสใหม่" ให้ตัวเอง เพื่อตั้ง PIN ผ่านหน้า "ครั้งแรก หรือ ลืม PIN"
-6. **AI อ่านมิเตอร์ (ไม่บังคับ)**: สร้าง API key ที่ console.anthropic.com แล้วตั้งเป็น secret ของ function เอง
-   ด้วยคำสั่ง `supabase secrets set ANTHROPIC_API_KEY=…` (พิมพ์ในเครื่องตัวเองเท่านั้น ห้ามวางในแชท/ไฟล์/หน้าเว็บ)
-   ถ้าอยากใช้โมเดลอื่นตั้ง `METER_AI_MODEL` ได้ (ค่าเริ่มต้น claude-opus-5-5) · ถ้ายังไม่ตั้ง key ปุ่มถ่ายรูปยังใช้ได้ แค่ AI ไม่อ่านให้
-7. ห้ามวาง service-role key ในแชทหรือในไฟล์ที่ commit เด็ดขาด เพราะ edge functions อ่านค่านี้จาก environment ของ Supabase เองอยู่แล้ว
+3. เปิดลิงก์ Pages → เข้าด้วยเบอร์ + PIN → แท็บ **ผู้ใช้งาน** → สร้างบัญชีให้ เป้อ · นุ้ย · กวาง · หน่อย · ช่าง (ระบบออกรหัสเปิดใช้ 8 หลัก ให้แต่ละคนไปตั้ง PIN เอง)
+4. แท็บ **ตั้งค่า** (กวาง/CEO): ตรวจอัตราค่าไฟ/น้ำ ชื่อบัญชีรับโอน เพดานรายจ่ายอื่น (3,000) และใส่ยอดยกมาเงินสำรองนุ้ย
 
-## 2. Cloudflare Pages
+## 6. ตรวจหลังขึ้นระบบ (ทำครั้งแรก)
 
-- Connect GitHub → repo `dorm-finance`
-- Build command `npm ci && npm run build` · Build output `dist` · Root directory `app`
-- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (ใช้แค่ anon key)
-- ไม่ต้องตั้ง `_redirects` เพิ่ม: Pages จะส่ง `index.html` ให้ทุก path ที่ไม่มีไฟล์ตรงอยู่แล้ว ซึ่งรวมถึงลิงก์ลงทะเบียน `/r/<token>`
-- เพิ่ม URL ของ Pages ใน Supabase **Auth → URL configuration → Site URL**
+- เปิดแอป 2 เครื่องพร้อมกัน (เช่น เป้อกับกวาง) → เครื่องหนึ่งบันทึกรับเงิน อีกเครื่องต้องเห็นภายในไม่กี่วินาทีโดยไม่ต้องรีเฟรช (SPEC §10 ข้อ 2)
+- จดมิเตอร์ 1 ห้องด้วยรูปจริง → AI ต้องอ่านเลขให้ (ถ้าตั้ง `ANTHROPIC_API_KEY`)
+- นำเข้าแบบฟอร์ม Excel รอบ พ.ย. หรือกด "เริ่มรอบบิล" ในแท็บจดมิเตอร์
+
+## กฎความปลอดภัย
+
+- service_role key / Database password / Access token / API key: ใส่เฉพาะในหน้าตั้งค่าของระบบนั้น ๆ หรือ GitHub Secrets — **ไม่วางในแชท ไม่ใส่ในไฟล์ ไม่ใส่ในหน้าเว็บ**
+- หน้าเว็บใช้แค่ anon key (ปลอดภัยเพราะทุกตารางมี RLS และทุกการเปลี่ยนเงินผ่าน RPC ที่ตรวจสิทธิ์)
+- ถ้าคีย์หลุด: Supabase → Project Settings → API Keys → rotate แล้วอัปเดต secret ใน GitHub / Cloudflare
+
+## ทำเองด้วย CLI (ทางเลือก แทนข้อ 2–3)
+
+```bash
+supabase link --project-ref <ref>
+supabase db push
+supabase functions deploy login --no-verify-jwt
+supabase functions deploy activate --no-verify-jwt
+supabase functions deploy admin-create-user
+supabase functions deploy read-meter
+supabase secrets set ANTHROPIC_API_KEY=…        # พิมพ์ในเครื่องตัวเองเท่านั้น
+cd scripts && npm ci && DATABASE_URL='<session pooler url>' npx tsx import-opening.ts
+```
