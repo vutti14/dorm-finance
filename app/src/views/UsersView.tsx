@@ -6,10 +6,11 @@ import { fmtPhone, thaiDate } from '../lib/format'
 import { ROLE_TH, type Profile, type Role } from '../lib/types'
 import { Loading, Modal, useAction } from '../components/ui'
 
+// same rule as supabase/functions/admin-create-user (server enforces it)
+const ALL: Role[] = ['ceo', 'manager', 'finance_field', 'finance', 'auditor', 'worker']
 const MAY_CREATE: Record<string, Role[]> = {
-  ceo: ['ceo', 'manager', 'finance_field', 'finance', 'auditor', 'worker'],
-  finance: ['manager', 'finance_field', 'worker'],
-  manager: ['worker'],
+  ceo: ALL, manager: ALL, finance_field: ALL,
+  finance: ALL.filter((r) => r !== 'ceo'),
 }
 
 export default function UsersView({ profile }: { profile: Profile }) {
@@ -73,7 +74,7 @@ export default function UsersView({ profile }: { profile: Profile }) {
                     <td>{u.display_name}</td>
                     <td>{fmtPhone(u.phone)}</td>
                     <td>
-                      {manageable && profile.role !== 'manager' ? (
+                      {manageable ? (
                         <select className="inp" value={u.role} disabled={busy}
                                 onChange={(e) => run(() => rpc('admin_update_profile', { p_id: u.id, p_display_name: u.display_name, p_role: e.target.value, p_active: u.active }), 'เปลี่ยนสิทธิ์แล้ว')}>
                           {allowed.map((r) => <option key={r} value={r}>{ROLE_TH[r]}</option>)}

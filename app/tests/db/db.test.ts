@@ -241,8 +241,23 @@ describe.skipIf(!URL || !existsSync(SAMPLE))('database', () => {
       ['bills', 'receipts', 'bill_rounds', 'meter_readings', 'requests', 'request_events', 'attendance', 'ledger_entries', 'workers']))
   })
 
-  it('petty cash opening balance can be set once', async () => {
-    await one('finance', `select set_opening_balance('PC', 10000)`)
-    await expect(as('finance', `select set_opening_balance('PC', 1)`)).rejects.toThrow(/ตั้งยอดยกมาไปแล้ว/)
+  it('petty cash opening balance: set, then corrected with a reason via an adjustment entry', async () => {
+    expect(Number((await one('finance', `select set_opening_balance('PC', 10000) r`)).r)).toBe(10000)
+    await expect(as('finance', `select set_opening_balance('PC', 9500)`)).rejects.toThrow(/ต้องใส่เหตุผล/)
+    await one('finance', `select set_opening_balance('PC', 9500, 'นับใหม่ ขาด 500')`)
+    const rows = await as('finance', `select category, amount::float from ledger_entries where wallet_id = 'PC' order by id`)
+    expect(rows).toEqual([{ category: 'opening_balance', amount: 10000 }, { category: 'adjustment', amount: -500 }])
+    expect(Number((await one('finance', `select pc_opening_amount() r`)).r)).toBe(9500)
+    await expect(as('finance_field', `select set_opening_balance('PC', 1, 'x')`)).rejects.toThrow(/ไม่มีสิทธิ์/)
+  })
+
+  it('users: manager and finance_field manage every account; finance cannot touch CEO accounts', async () => {
+    await one('manager', `select admin_update_profile($1, 'auditor', 'finance', true)`, [users.auditor])
+    await one('finance_field', `select admin_update_profile($1, 'auditor', 'auditor', true)`, [users.auditor])
+    await one('finance_field', `select admin_update_profile($1, 'w', 'ceo', true)`, [users.worker])
+    await expect(as('finance', `select admin_update_profile($1, 'w', 'worker', true)`, [users.worker])).rejects.toThrow(/CEO/)
+    await one('manager', `select admin_update_profile($1, 'w', 'worker', true)`, [users.worker])
+    await expect(as('manager', `select admin_update_profile($1, 'm', 'worker', true)`, [users.manager])).rejects.toThrow(/ของตัวเอง/)
+    await expect(as('auditor', `select admin_update_profile($1, 'w', 'worker', true)`, [users.worker])).rejects.toThrow(/ไม่มีสิทธิ์/)
   })
 })

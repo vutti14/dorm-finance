@@ -1,14 +1,16 @@
 // POST { phone, display_name, role, worker_id? }            → create account + one-time activation code
 // POST { phone, reissue: true }                              → new activation code ("ลืม PIN")
-// Caller must be ceo / finance / manager (manager: worker accounts only; only ceo creates ceo/finance/auditor).
+// Caller must be ceo / manager / finance_field (any role) or finance (non-CEO roles).
 import { ACTIVATION_HOURS, admin, caller, codeHash, cors, emailFor, fail, json, normPhone, phoneOk, randomDigits } from '../_shared/util.ts'
 
 const ROLES = ['ceo', 'manager', 'finance_field', 'finance', 'auditor', 'worker']
-// TODO(owner): confirm who may create which role. Current rule = safest reading of SPEC §3.
+// Owner decision 1 ต.ค. 69: เป้อ (manager) and นุ้ย (finance_field) run the Phitsanulok site and may create
+// every role, like the CEO. กวาง (finance) may create everything except CEO.
 const MAY_CREATE: Record<string, string[]> = {
   ceo: ROLES,
-  finance: ['manager', 'finance_field', 'worker'],
-  manager: ['worker'],
+  manager: ROLES,
+  finance_field: ROLES,
+  finance: ROLES.filter((r) => r !== 'ceo'),
 }
 
 Deno.serve(async (req) => {

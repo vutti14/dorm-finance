@@ -24,37 +24,55 @@ begin
   if not found then raise exception using message = 'ไม่พบอาคาร'; end if;
 end $$;
 
--- petty cash opening balance: asked from นุ้ย at go-live (SPEC §4.1). Once only.
-create or replace function set_opening_balance(p_wallet text, p_amount numeric) returns void
+-- petty cash opening balance: counted by นุ้ย at go-live, entered by finance (SPEC §4.1).
+-- First call posts the opening entry. Later calls correct it (owner decision 1 ต.ค. 69): the ledger stays
+-- append-only, so a correction posts an 'adjustment' entry for the difference, tagged ref_table='opening_balance',
+-- and needs a reason.
+create or replace function pc_opening_amount() returns numeric
+language sql stable security definer set search_path = public as $$
+  select sum(amount) from ledger_entries
+   where wallet_id = 'PC' and (category = 'opening_balance' or (category = 'adjustment' and ref_table = 'opening_balance'))
+$$;
+
+create or replace function set_opening_balance(p_wallet text, p_amount numeric, p_reason text default null)
+returns numeric
 language plpgsql security definer set search_path = public as $$
+declare cur numeric;
 begin
   perform require_role('finance');
   if p_wallet <> 'PC' then raise exception using message = 'ตั้งยอดยกมาได้เฉพาะเงินสำรองนุ้ย'; end if;
   if p_amount is null or p_amount < 0 then raise exception using message = 'ใส่ยอดเงินสำรองที่นับได้จริง'; end if;
   perform 1 from wallets where id = p_wallet for update;
-  if exists (select 1 from ledger_entries where wallet_id = p_wallet and category = 'opening_balance') then
-    raise exception using message = 'ตั้งยอดยกมาไปแล้ว — ถ้าผิดให้บันทึกรายการปรับปรุง';
+  cur := pc_opening_amount();
+  if cur is null then
+    insert into ledger_entries (on_date, wallet_id, amount, category, description, created_by)
+    values (date '2026-09-30', p_wallet, p_amount, 'opening_balance', 'ยอดยกมา เงินสำรองนุ้ย (นับจริงวันเริ่มระบบ)', auth.uid());
+    return p_amount;
   end if;
-  insert into ledger_entries (on_date, wallet_id, amount, category, description, created_by)
-  values (date '2026-09-30', p_wallet, p_amount, 'opening_balance', 'ยอดยกมา เงินสำรองนุ้ย (นับจริงวันเริ่มระบบ)', auth.uid());
+  if p_amount = cur then raise exception using message = 'ยอดเท่าเดิม ไม่มีอะไรต้องแก้'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception using message = 'แก้ยอดยกมาต้องใส่เหตุผล'; end if;
+  insert into ledger_entries (on_date, wallet_id, amount, category, ref_table, description, created_by)
+  values (date '2026-09-30', p_wallet, p_amount - cur, 'adjustment', 'opening_balance',
+          format('แก้ยอดยกมา เงินสำรองนุ้ย %s → %s · %s', to_char(cur, 'FM999,999,990.00'), to_char(p_amount, 'FM999,999,990.00'), btrim(p_reason)),
+          auth.uid());
+  return p_amount;
 end $$;
 
 -- ================================================================ users (profile edits; account creation is the admin-create-user edge function)
 create or replace function admin_update_profile(p_id uuid, p_display_name text, p_role role_t, p_active boolean,
                                                 p_worker_id uuid default null) returns void
 language plpgsql security definer set search_path = public as $$
-declare me role_t := require_role('finance', 'manager'); cur profiles%rowtype;
+-- เป้อ (manager) and นุ้ย (finance_field) run the Phitsanulok site and may manage every account, like the CEO
+-- (owner decision 1 ต.ค. 69). กวาง (finance) may manage non-CEO accounts.
+declare me role_t := require_role('finance', 'manager', 'finance_field'); cur profiles%rowtype;
 begin
   select * into cur from profiles where id = p_id for update;
   if not found then raise exception using message = 'ไม่พบผู้ใช้'; end if;
   if p_id = auth.uid() and (p_role <> cur.role or not p_active) then
     raise exception using message = 'เปลี่ยนสิทธิ์หรือปิดบัญชีของตัวเองไม่ได้';
   end if;
-  if me <> 'ceo' and (cur.role = 'ceo' or p_role = 'ceo') then
-    raise exception using message = 'เฉพาะ CEO เปลี่ยนสิทธิ์ระดับ CEO ได้';
-  end if;
-  if me = 'manager' and (cur.role <> 'worker' or p_role <> 'worker') then
-    raise exception using message = 'ผู้จัดการแก้ได้เฉพาะบัญชีช่าง/แม่บ้าน';
+  if me = 'finance' and (cur.role = 'ceo' or p_role = 'ceo') then
+    raise exception using message = 'บัญชีระดับ CEO แก้ได้เฉพาะ CEO ผู้จัดการ หรือการเงินหน้างาน';
   end if;
   update profiles set display_name = btrim(p_display_name), role = p_role, active = p_active,
          worker_id = coalesce(p_worker_id, worker_id)
@@ -270,7 +288,7 @@ create view v_alerts as select * from get_alerts();
 grant select on v_alerts to authenticated;
 
 grant execute on function update_setting(text, jsonb), update_building(text, text, text, text, text, text),
-  set_opening_balance(text, numeric), admin_update_profile(uuid, text, role_t, boolean, uuid), accept_consent(text),
+  set_opening_balance(text, numeric, text), pc_opening_amount(), admin_update_profile(uuid, text, role_t, boolean, uuid), accept_consent(text),
   decide_tenant_registration(uuid, boolean, text), regenerate_room_token(uuid), current_round_id(), get_alerts()
   to authenticated;
 grant execute on function registration_room(text), submit_tenant_registration(text, jsonb) to anon, authenticated;

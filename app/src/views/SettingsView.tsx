@@ -17,15 +17,16 @@ export default function SettingsView({ profile }: { profile: Profile }) {
     const [{ data: settings }, { data: buildings }, { data: pc }] = await Promise.all([
       supabase.from('settings').select('key, value'),
       supabase.from('buildings').select('*').order('id'),
-      supabase.from('ledger_entries').select('amount').eq('wallet_id', 'PC').eq('category', 'opening_balance'),
+      supabase.rpc('pc_opening_amount'),
     ])
     const get = (k: string) => (settings || []).find((x) => x.key === k)?.value as Record<string, number> | undefined
-    return { rates: get('rates'), reserve: get('repair_reserve')?.amount ?? 50000, buildings: (buildings || []) as Building[], pcSet: (pc || []).length > 0 }
+    return { rates: get('rates'), reserve: get('repair_reserve')?.amount ?? 50000, buildings: (buildings || []) as Building[], pcOpening: pc == null ? null : Number(pc) }
   }, ['ledger_entries'])
 
   const [rates, setRates] = useState({ elec: '', water: '', pen_day: '', pen_max: '' })
   const [reserve, setReserve] = useState('')
   const [pcAmt, setPcAmt] = useState('')
+  const [pcReason, setPcReason] = useState('')
   const [bld, setBld] = useState<Record<string, Building>>({})
   useEffect(() => {
     if (!s.data) return
@@ -86,13 +87,17 @@ export default function SettingsView({ profile }: { profile: Profile }) {
       {canEdit && (
         <div className="panel">
           <h2>เงินสำรองนุ้ย — ยอดยกมาวันเริ่มระบบ</h2>
-          {s.data.pcSet ? <p className="ok">ตั้งยอดยกมาแล้ว</p> : (
-            <div className="row">
-              <input className="inp" type="number" inputMode="decimal" placeholder="นับเงินสดจริง (บาท)" value={pcAmt} onChange={(e) => setPcAmt(e.target.value)} style={{ width: 180 }} />
-              <button className="btn" disabled={busy || pcAmt === ''} onClick={() => confirm(`ตั้งยอดยกมาเงินสำรอง ${fmt(pcAmt)} บาท? ตั้งได้ครั้งเดียว`) &&
-                run(() => rpc('set_opening_balance', { p_wallet: 'PC', p_amount: num(pcAmt) }), 'ตั้งยอดยกมาแล้ว')}>บันทึก</button>
-            </div>
-          )}
+          {s.data.pcOpening != null && <p>ตั้งไว้ <b>{fmt(s.data.pcOpening)}</b> บาท · แก้ได้ถ้ากรอกผิด (ระบบบันทึกเป็นรายการปรับ พร้อมเหตุผล ไม่ลบของเดิม)</p>}
+          <div className="row">
+            <input className="inp" type="number" inputMode="decimal" placeholder={s.data.pcOpening == null ? 'นับเงินสดจริง (บาท)' : 'ยอดที่ถูกต้อง (บาท)'} value={pcAmt} onChange={(e) => setPcAmt(e.target.value)} style={{ width: 180 }} />
+            {s.data.pcOpening != null && <input className="inp" placeholder="เหตุผลที่แก้ (ต้องใส่)" value={pcReason} onChange={(e) => setPcReason(e.target.value)} style={{ flex: 1, minWidth: 160 }} />}
+            <button className="btn" disabled={busy || pcAmt === '' || (s.data.pcOpening != null && !pcReason.trim())}
+                    onClick={() => confirm(`${s.data!.pcOpening == null ? 'ตั้ง' : 'แก้'}ยอดยกมาเงินสำรองเป็น ${fmt(pcAmt)} บาท?`) &&
+                      run(async () => {
+                        await rpc('set_opening_balance', { p_wallet: 'PC', p_amount: num(pcAmt), p_reason: pcReason })
+                        setPcAmt(''); setPcReason('')
+                      }, 'บันทึกยอดยกมาแล้ว')}>{s.data.pcOpening == null ? 'บันทึก' : 'แก้ยอด'}</button>
+          </div>
         </div>
       )}
 
