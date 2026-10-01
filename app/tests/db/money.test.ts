@@ -221,6 +221,13 @@ describe.skipIf(!URL)('money (M2)', () => {
     expect(left[0].detail).toMatch(/ถอดสิทธิ์ CEO noi/)
   })
 
+  it('เป้อ and นุ้ย see every wallet balance (owner decision)', async () => {
+    for (const who of ['pao', 'nui']) {
+      const rows = await as(who, `select wallet_id from wallet_balances order by wallet_id`)
+      expect(rows.map((r: any) => r.wallet_id)).toEqual(expect.arrayContaining(['A3', 'PC']))
+    }
+  })
+
   it('alerts: flagged requests and petty cash low', async () => {
     const kinds = (await as('kwang', `select kind from v_alerts`)).map((a: any) => a.kind)
     expect(kinds).toEqual(expect.arrayContaining(['request_flags']))
