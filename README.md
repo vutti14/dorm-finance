@@ -3,7 +3,7 @@
 ระบบบิลค่าห้องและเงินของหอพัก 2 แห่งในพิษณุโลก ใช้แทนสมุดมือและใบสำคัญจ่ายกระดาษ ทีม 6 บทบาททำงานพร้อมกันได้จากมือถือของแต่ละคน
 และเห็นการเปลี่ยนแปลงของกันและกันภายในไม่กี่วินาที สเปกเต็มอยู่ใน `SPEC.md` (เก็บไว้นอก git จนกว่า repo จะเป็น Private)
 
-**สถานะ: M1 (โครงหลัก + บิลค่าห้อง)** ดูผลทดสอบและคำถามที่รอคำตอบใน [docs/M1-report.md](docs/M1-report.md)
+**สถานะ: M1 (บิลค่าห้อง) + M2 (ใบเบิก อนุมัติ จ่าย ตรวจ เงินเดือน โอน/เจ้าของ กระทบยอด)** — ผลทดสอบและคำถามใน [docs/M1-report.md](docs/M1-report.md) · [docs/M2-report.md](docs/M2-report.md)
 
 | | |
 |---|---|
@@ -34,7 +34,7 @@ npm install && npm run dev
 ```bash
 cd app
 npm test                 # importer + การคำนวณบิล (ใช้ reference/test_import_sample.xlsx)
-npm run test:db          # Postgres จริงแบบใช้แล้วทิ้ง: migrations + RLS + RPC + กดพร้อมกัน
+npm run test:db          # Postgres จริงแบบใช้แล้วทิ้ง (ฐานข้อมูลใหม่ต่อไฟล์): migrations + RLS + RPC + กดพร้อมกัน
 npm run typecheck && npm run build
 ```
 
@@ -44,7 +44,7 @@ npm run typecheck && npm run build
 
 ```
 app/                    หน้าเว็บ (views = แท็บตาม prototype, lib = importer / billing / billText)
-supabase/migrations/    schema · security (RLS, audit, ledger ห้ามแก้) · billing RPC · admin/ผู้เช่า/แจ้งเตือน · seed · storage
+supabase/migrations/    schema · security (RLS, audit, ledger ห้ามแก้) · billing RPC · admin/ผู้เช่า/แจ้งเตือน · seed · storage · money (M2)
 supabase/functions/     login · activate · admin-create-user
 scripts/                import-opening.ts (ยอดยกมา + ประวัติสมุด) · test-db.sh
 reference/              ไฟล์จากเจ้าของ (prototype, แบบฟอร์ม Excel, CSV) — ไม่อยู่ใน git จนกว่า repo จะเป็น Private

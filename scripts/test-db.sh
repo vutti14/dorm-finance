@@ -16,16 +16,24 @@ trap cleanup EXIT
 "${RUN_AS[@]}" "$PG_BIN/pg_ctl" -D "$DIR/data" -o "-p $PORT -k $DIR -c wal_level=logical -c timezone=Asia/Bangkok" -l "$DIR/log" -w start >/dev/null
 
 PSQL=("$PG_BIN/psql" -h "$DIR" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -q)
-"${PSQL[@]}" -d postgres -c "create database dorm"
-"${PSQL[@]}" -d dorm -f "$ROOT/supabase/tests/stubs.sql"
-for f in "$ROOT"/supabase/migrations/*.sql; do
-  echo "migrate $(basename "$f")"
-  "${PSQL[@]}" -d dorm -f "$f"
-done
+# each test file gets its own fresh database (they assert on global state)
+setup_db() {
+  "${PSQL[@]}" -d postgres -c "drop database if exists dorm" -c "create database dorm"
+  "${PSQL[@]}" -d dorm -f "$ROOT/supabase/tests/stubs.sql"
+  for f in "$ROOT"/supabase/migrations/*.sql; do
+    "${PSQL[@]}" -d dorm -f "$f"
+  done
+  if [ -d "$ROOT/reference" ]; then
+    (cd "$ROOT/scripts" && { [ -d node_modules ] || npm install --silent; } && npx tsx import-opening.ts --reference "$ROOT/reference" >/dev/null)
+  fi
+}
 
 export DATABASE_URL="postgresql://postgres@localhost:$PORT/dorm?host=$DIR"
-if [ -d "$ROOT/reference" ]; then
-  (cd "$ROOT/scripts" && { [ -d node_modules ] || npm install --silent; } && npx tsx import-opening.ts --reference "$ROOT/reference")
-fi
 cd "$ROOT/app"
-npx vitest run --dir tests/db "$@"
+status=0
+for t in tests/db/*.test.ts; do
+  echo "== $t (fresh database: $(ls "$ROOT"/supabase/migrations/*.sql | wc -l) migrations)"
+  setup_db
+  npx vitest run "$t" "$@" || status=1
+done
+exit $status

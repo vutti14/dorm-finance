@@ -1,10 +1,11 @@
-// ภาพรวม (M1): round KPIs per building, alerts, wallet balances, owner account. Full NOI dashboard = M5.
+// ภาพรวม: round KPIs per building, alerts, wallet balances, owner draw availability, owner account. Full NOI dashboard = M5.
 import { supabase } from '../lib/supabase'
 import { useLive } from '../lib/live'
 import { fmt, round2 } from '../lib/format'
 import { num, type Profile, type Round } from '../lib/types'
 import { Loading, Stat } from '../components/ui'
 import { useAlerts } from './AlertsView'
+import { OwnerAccount } from './MoneyViews'
 
 interface Summary {
   building_id: 'N' | 'P'; billed_rooms: number; vacant_rooms: number; open_rooms: number; closed_rooms: number
@@ -21,14 +22,14 @@ export default function OverviewView({ profile }: { profile: Profile }) {
     const sums = R ? ((await supabase.from('v_round_summary').select('*').eq('round_id', R.id)).data as Summary[]) : []
     const wallets = money ? ((await supabase.from('wallet_balances').select('*')).data as { wallet_id: string; balance: number }[]) : []
     const deposits = money ? ((await supabase.from('v_deposits_held').select('held')).data || []).reduce((s, r) => s + num(r.held), 0) : 0
-    const owner = money ? ((await supabase.from('settings').select('value').eq('key', 'owner_opening').maybeSingle()).data?.value as Record<string, number> | undefined) : undefined
-    const reserve = money ? num(((await supabase.from('settings').select('value').eq('key', 'repair_reserve').maybeSingle()).data?.value as { amount?: number })?.amount ?? 50000) : 0
-    return { R, sums: sums || [], wallets: wallets || [], deposits, owner, reserve }
-  }, ['bills', 'bill_rounds', 'ledger_entries', 'deposits'])
+    const owner = money ? ((await supabase.from('v_owner_account').select('*').maybeSingle()).data as Record<string, number> | null) : null
+    const avail = money ? ((await supabase.rpc('owner_draw_available')).data as { reserve: number; pending_a3: number; available: number } | null) : null
+    return { R, sums: sums || [], wallets: wallets || [], deposits, owner, avail }
+  }, ['bills', 'bill_rounds', 'ledger_entries', 'deposits', 'requests'])
   const alerts = useAlerts()
 
   if (!data.data) return <Loading error={data.error} />
-  const { R, sums, wallets, deposits, owner, reserve } = data.data
+  const { R, sums, wallets, deposits, owner, avail } = data.data
   const tot = (k: keyof Summary) => round2(sums.reduce((s, x) => s + num(x[k]), 0))
   const bal = (id: string) => num(wallets.find((w) => w.wallet_id === id)?.balance)
   const cash = bal('N') + bal('P') + bal('A3')
@@ -76,27 +77,14 @@ export default function OverviewView({ profile }: { profile: Profile }) {
               <tr key={k}><td>{v}</td><td className="n">{wallets.some((w) => w.wallet_id === k) ? fmt(bal(k)) : <span className="muted">ยังไม่ตั้งยอดยกมา</span>}</td></tr>
             ))}
             <tr><td>หัก เงินประกันผู้เช่าที่ถืออยู่</td><td className="n">−{fmt(deposits)}</td></tr>
-            <tr><td>หัก สำรองซ่อม</td><td className="n">−{fmt(reserve)}</td></tr>
-            <tr><td><b>เงินที่ไม่ติดภาระ (3 บัญชี)</b></td><td className="n"><b className={cash - deposits - reserve < 0 ? 'flag' : ''}>{fmt(cash - deposits - reserve)}</b></td></tr>
+            <tr><td>หัก สำรองซ่อม</td><td className="n">−{fmt(avail?.reserve)}</td></tr>
+            <tr><td>หัก รายการรอจ่ายจากบัญชี3</td><td className="n">−{fmt(avail?.pending_a3)}</td></tr>
+            <tr><td><b>โอนให้เจ้าของได้</b> <span className="muted">(เงิน 3 บัญชี {fmt(cash)})</span></td><td className="n"><b className={num(avail?.available) < 0 ? 'flag' : ''} style={{ fontSize: 'inherit' }}>{fmt(avail?.available)}</b></td></tr>
           </tbody></table></div>
-          <p className="muted">ระยะ M2 จะหักรายการรอจ่ายจากบัญชี3 และเปิดปุ่มโอนให้เจ้าของ</p>
         </div>
       )}
 
-      {money && owner && (
-        <div className="panel">
-          <h2>บัญชีระหว่างเจ้าของกับหอ (ยกมา ณ {owner.as_of ? String(owner.as_of) : '30 ก.ย. 69'})</h2>
-          <table className="t"><tbody>
-            <tr><td>หอจ่ายแทนอสังหาฯ/ส่วนตัว (ม.ค.–ก.ย.)</td><td className="n">{fmt(owner.real_estate)}</td></tr>
-            <tr><td>เจ้าของจ่ายค่าไฟแทนหอ</td><td className="n">−{fmt(owner.owner_paid)}</td></tr>
-            <tr><td>เจ้าของเติมเงินเข้าหอ</td><td className="n">−{fmt(owner.injection)}</td></tr>
-            {(() => {
-              const v = num(owner.real_estate) - num(owner.owner_paid) - num(owner.injection)
-              return <tr><td><b>{v > 0 ? 'เจ้าของค้างหอ' : 'หอค้างเจ้าของ'}</b></td><td className="n"><b>{fmt(Math.abs(v))}</b></td></tr>
-            })()}
-          </tbody></table>
-        </div>
-      )}
+      {money && owner && <OwnerAccount o={owner} />}
     </>
   )
 }

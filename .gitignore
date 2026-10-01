@@ -12,3 +12,4 @@ supabase/.branches/
 # then delete this line and commit /reference (SPEC §2 repo layout).
 /reference/
 *.tsbuildinfo
+app/vite.smoke.config.ts

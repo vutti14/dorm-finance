@@ -11,20 +11,25 @@ import OverviewView from './views/OverviewView'
 import SettingsView from './views/SettingsView'
 import UsersView from './views/UsersView'
 import PermissionsView from './views/PermissionsView'
+import RequestForm from './views/RequestForm'
+import WorkersView from './views/WorkersView'
+import { AllRequests, Audit, MyRequests, Salary, ToApprove, ToPay } from './views/RequestViews'
+import { Balances, Transfers } from './views/MoneyViews'
+import CeoWatch from './components/CeoWatch'
 
 // Tab names exactly as SPEC §7 / prototype. Tabs whose milestone is not built yet are hidden for now.
 type Tab = { name: string; m: 1 | 2 | 3 | 4 }
 const T = (name: string, m: Tab['m'] = 1): Tab => ({ name, m })
 const MENU: Record<Role, Tab[]> = {
-  manager: [T('ขอเบิก', 2), T('ลงเวลางาน', 3), T('รายการของฉัน', 2), T('บิลค่าห้อง'), T('ทะเบียนคนงาน', 3), T('เบิกเงินเดือน', 2), T('จดมิเตอร์', 4), T('ผู้ใช้งาน')],
-  finance_field: [T('รอจ่าย', 2), T('รออนุมัติ', 2), T('บิลค่าห้อง'), T('ทะเบียนคนงาน', 3), T('เบิกเงินเดือน', 2), T('รายการทั้งหมด', 2), T('ผู้ใช้งาน')],
+  manager: [T('ขอเบิก', 2), T('ลงเวลางาน', 3), T('รายการของฉัน', 2), T('บิลค่าห้อง'), T('ทะเบียนคนงาน', 2), T('เบิกเงินเดือน', 2), T('จดมิเตอร์', 4), T('ผู้ใช้งาน')],
+  finance_field: [T('รอจ่าย', 2), T('รออนุมัติ', 2), T('บิลค่าห้อง'), T('ทะเบียนคนงาน', 2), T('เบิกเงินเดือน', 2), T('รายการทั้งหมด', 2), T('ผู้ใช้งาน')],
   finance: [T('รออนุมัติ', 2), T('บิลค่าห้อง'), T('ตรวจสอบ', 2), T('แจ้งเตือน'), T('โอน / เจ้าของ', 2), T('ยอดบัญชี', 2), T('ภาพรวม'), T('ตั้งค่า'), T('ผู้ใช้งาน')],
   auditor: [T('แจ้งเตือน'), T('ตรวจสอบ', 2), T('ภาพรวม'), T('บิลค่าห้อง'), T('รายการทั้งหมด', 2), T('สิทธิ์')],
   ceo: [T('ภาพรวม'), T('แจ้งเตือน'), T('บิลค่าห้อง'), T('ขอเบิก', 2), T('ลงเวลางาน', 3), T('รอจ่าย', 2), T('รออนุมัติ', 2), T('ตรวจสอบ', 2),
-        T('ทะเบียนคนงาน', 3), T('โอน / เจ้าของ', 2), T('ยอดบัญชี', 2), T('รายการทั้งหมด', 2), T('จดมิเตอร์', 4), T('ผู้ใช้งาน'), T('ตั้งค่า'), T('สิทธิ์')],
+        T('ทะเบียนคนงาน', 2), T('โอน / เจ้าของ', 2), T('ยอดบัญชี', 2), T('รายการทั้งหมด', 2), T('จดมิเตอร์', 4), T('ผู้ใช้งาน'), T('ตั้งค่า'), T('สิทธิ์')],
   worker: [T('ลงเวลางาน', 3), T('ประวัติของฉัน', 3)],
 }
-const BUILT = 1
+const BUILT = 2
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -71,6 +76,7 @@ export default function App() {
         </div>
         <button className="btn ghost sm" onClick={() => supabase.auth.signOut()}>ออกจากระบบ</button>
       </header>
+      <CeoWatch isCeo={profile.role === 'ceo'} />
       <Tabs profile={profile} tabs={tabs} current={current} onPick={setTab} />
       <main>
         {tabs.length === 0 && <Soon what="ลงเวลางาน · ประวัติของฉัน" milestone="M3" />}
@@ -80,6 +86,16 @@ export default function App() {
         {current === 'ตั้งค่า' && <SettingsView profile={profile} />}
         {current === 'ผู้ใช้งาน' && <UsersView profile={profile} />}
         {current === 'สิทธิ์' && <PermissionsView />}
+        {current === 'ขอเบิก' && <RequestForm onSent={() => setTab(profile.role === 'ceo' ? 'รายการทั้งหมด' : 'รายการของฉัน')} />}
+        {current === 'รายการของฉัน' && <MyRequests profile={profile} />}
+        {current === 'เบิกเงินเดือน' && <Salary profile={profile} />}
+        {current === 'รอจ่าย' && <ToPay profile={profile} />}
+        {current === 'รออนุมัติ' && <ToApprove profile={profile} />}
+        {current === 'ตรวจสอบ' && <Audit />}
+        {current === 'รายการทั้งหมด' && <AllRequests />}
+        {current === 'โอน / เจ้าของ' && <Transfers />}
+        {current === 'ยอดบัญชี' && <Balances canCheck={['finance', 'ceo'].includes(profile.role)} />}
+        {current === 'ทะเบียนคนงาน' && <WorkersView profile={profile} />}
       </main>
       {later.length > 0 && tabs.length > 0 && (
         <p className="muted mt-6">ระยะถัดไปจะเพิ่มแท็บ: {later.map((t) => t.name).join(' · ')}</p>
@@ -95,16 +111,35 @@ function Tabs({ profile, tabs, current, onPick }: { profile: Profile; tabs: Tab[
     const { data, error } = await supabase.from('v_alerts').select('*')
     if (error) throw error
     return data as Alert[]
-  }, seesAlerts ? ['bills', 'bill_rounds', 'workers', 'tenant_registrations', 'ledger_entries'] : [])
+  }, seesAlerts ? ['bills', 'bill_rounds', 'workers', 'tenant_registrations', 'ledger_entries', 'requests', 'bank_checks', 'security_events'] : [])
+  // badge counts (SPEC §7): to pay, to approve, to audit, unanswered questions, incomplete registry
+  const { data: counts } = useLive<Record<string, number>>(async () => {
+    const role = profile.role, all = role === 'ceo'
+    const c = async (f: (q: any) => any) => (await f(supabase.from('requests').select('id', { count: 'exact', head: true }))).count || 0
+    const out: Record<string, number> = {}
+    const names = tabs.map((t) => t.name)
+    if (names.includes('รอจ่าย')) out['รอจ่าย'] = await c((q) => all ? q.eq('status', 'to_pay') : q.eq('status', 'to_pay').eq('payer_role', role))
+    if (names.includes('รออนุมัติ')) out['รออนุมัติ'] = await c((q) => all ? q.eq('status', 'to_approve') : q.eq('status', 'to_approve').eq('approver_role', role))
+    if (names.includes('ตรวจสอบ')) out['ตรวจสอบ'] = await c((q) => q.eq('status', 'paid'))
+    if (names.includes('รายการของฉัน')) out['รายการของฉัน'] = await c((q) => q.eq('status', 'asked').eq('requester_id', profile.id))
+    if (names.includes('ทะเบียนคนงาน')) {
+      const { data } = await supabase.rpc('workers_complete')
+      out['ทะเบียนคนงาน'] = ((data || []) as { missing: string[]; active: boolean }[]).filter((w) => w.active && w.missing.length).length
+    }
+    return out
+  }, ['requests', 'workers'], [profile.id, tabs.map((t) => t.name).join()])
   const high = (alerts || []).filter((a) => a.level === 'high').length
   return (
     <nav className="tabs" role="tablist">
-      {tabs.map((t) => (
-        <button key={t.name} className="tab" role="tab" aria-selected={t.name === current} onClick={() => onPick(t.name)}>
-          {t.name}
-          {t.name === 'แจ้งเตือน' && high > 0 && <span className="badge">{high}</span>}
-        </button>
-      ))}
+      {tabs.map((t) => {
+        const n = t.name === 'แจ้งเตือน' ? high : counts?.[t.name] || 0
+        return (
+          <button key={t.name} className="tab" role="tab" aria-selected={t.name === current} onClick={() => onPick(t.name)}>
+            {t.name}
+            {n > 0 && <span className="badge">{n}</span>}
+          </button>
+        )
+      })}
       <span className="ml-auto self-center muted whitespace-nowrap pl-2" title={connected ? 'ข้อมูลอัปเดตสด' : 'ขาดการเชื่อมต่อ กำลังลองใหม่'}>
         <span className={`live ${connected ? '' : 'off'}`} />{connected ? 'สด' : 'ออฟไลน์'}
       </span>

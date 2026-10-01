@@ -25,8 +25,10 @@ export default function UsersView({ profile }: { profile: Profile }) {
       supabase.from('v_workers').select('id, full_name').eq('active', true).order('full_name'),
     ])
     if (error) throw error
-    return { users: users as Profile[], workers: (workers || []) as { id: string; full_name: string }[] }
-  }, ['profiles', 'workers'])
+    const { data: plans } = await supabase.from('salary_plans').select('profile_id, monthly')
+    return { users: users as Profile[], workers: (workers || []) as { id: string; full_name: string }[],
+             plans: Object.fromEntries(((plans || []) as { profile_id: string; monthly: number }[]).map((p) => [p.profile_id, Number(p.monthly)])) }
+  }, ['profiles', 'workers', 'salary_plans'])
   if (!data.data) return <Loading error={data.error} />
 
   const create = () => run(async () => {
@@ -65,7 +67,7 @@ export default function UsersView({ profile }: { profile: Profile }) {
         <h2>ผู้ใช้ทั้งหมด ({data.data.users.length})</h2>
         <div className="scroll">
           <table className="t">
-            <thead><tr><th>ชื่อ</th><th>เบอร์</th><th>สิทธิ์</th><th>สถานะ</th><th></th></tr></thead>
+            <thead><tr><th>ชื่อ</th><th>เบอร์</th><th>สิทธิ์</th><th>สถานะ</th>{profile.role === 'ceo' && <th>เงินเดือน/เดือน</th>}<th></th></tr></thead>
             <tbody>
               {data.data.users.map((u) => {
                 const manageable = u.id !== profile.id && allowed.includes(u.role)
@@ -82,6 +84,11 @@ export default function UsersView({ profile }: { profile: Profile }) {
                       ) : ROLE_TH[u.role]}
                     </td>
                     <td>{u.active ? <span className="ok">ใช้งาน</span> : <span className="muted">ปิด</span>}{u.consent_at && <div className="muted text-xs">ยินยอม PDPA {thaiDate(u.consent_at.slice(0, 10))}</div>}</td>
+                    {profile.role === 'ceo' && (
+                      <td>{['manager', 'finance_field'].includes(u.role) || data.data!.plans[u.id] != null
+                        ? <SalaryPlan id={u.id} value={data.data!.plans[u.id]} fallback={u.role === 'manager' ? 17000 : u.role === 'finance_field' ? 10000 : 0} />
+                        : <span className="muted">—</span>}</td>
+                    )}
                     <td className="whitespace-nowrap">
                       {manageable && (
                         <>
@@ -111,5 +118,18 @@ export default function UsersView({ profile }: { profile: Profile }) {
         </Modal>
       )}
     </>
+  )
+}
+
+function SalaryPlan({ id, value, fallback }: { id: string; value: number | undefined; fallback: number }) {
+  const [v, setV] = useState(String(value ?? fallback))
+  const { busy, run } = useAction()
+  const changed = Number(v) !== (value ?? fallback) || value == null
+  return (
+    <span className="inline-flex gap-1 items-center">
+      <input className="inp" type="number" inputMode="decimal" style={{ width: 90 }} value={v} onChange={(e) => setV(e.target.value)} />
+      {changed && <button className="btn ghost sm" disabled={busy} onClick={() => run(() => rpc('set_salary_plan', { p_profile: id, p_monthly: Number(v) }), 'บันทึกเงินเดือนแล้ว')}>บันทึก</button>}
+      {value == null && <span className="muted text-xs">ค่าตั้งต้น</span>}
+    </span>
   )
 }
