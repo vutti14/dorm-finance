@@ -8,7 +8,7 @@ export function useAlerts() {
     const { data, error } = await supabase.from('v_alerts').select('*')
     if (error) throw error
     return (data as Alert[]).sort((a, b) => (a.level === b.level ? 0 : a.level === 'high' ? -1 : 1))
-  }, ['bills', 'bill_rounds', 'workers', 'tenant_registrations', 'ledger_entries', 'deposits', 'requests', 'bank_checks', 'security_events'])
+  }, ['bills', 'bill_rounds', 'workers', 'tenant_registrations', 'ledger_entries', 'deposits', 'requests', 'bank_checks', 'security_events', 'attendance', 'request_lines'])
 }
 
 export default function AlertsView() {
@@ -17,7 +17,7 @@ export default function AlertsView() {
   return (
     <div className="panel">
       <h2>สิ่งที่ต้องดูวันนี้ ({data.length})</h2>
-      <p className="muted">ระบบตรวจให้อัตโนมัติจากบิล ใบเบิก ทะเบียนคนงาน ยอดบัญชี และการกระทบยอดธนาคาร · ระยะ M3 จะเพิ่มการลงเวลางาน</p>
+      <p className="muted">ระบบตรวจให้อัตโนมัติจากบิล ใบเบิก การลงเวลางาน ทะเบียนคนงาน ยอดบัญชี และการกระทบยอดธนาคาร</p>
       {data.length === 0 && <p className="ok">ไม่มีเรื่องผิดปกติ</p>}
       {data.map((a, i) => (
         <div key={i} className={`al ${a.level}`}>

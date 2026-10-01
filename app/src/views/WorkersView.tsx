@@ -31,7 +31,9 @@ export default function WorkersView({ profile }: { profile: Profile }) {
             <span className="muted">{fmt(w.daily_rate)} บาท/วัน · {fmtPhone(w.phone)} · บัตร {w.national_id || '—'}</span>
             {!w.active ? <span className="muted">ปิดใช้งาน</span> : w.missing.length ? <span className="flag">ขาด: {w.missing.join(', ')}</span> : <span className="ok">ข้อมูลครบ เบิกได้</span>}
             {w.phone && (dup[w.phone] || 0) > 1 && <span className="flag">เบอร์ซ้ำกับคนอื่น</span>}
+            {w.is_team_lead && <span className="tag" style={{ borderColor: 'var(--hi)', color: 'var(--hi)' }}>หัวหน้าทีม</span>}
             {w.id_card_path && <Thumbs paths={[w.id_card_path]} />}
+            <TeamLead w={w} />
             <button className="btn ghost sm ml-auto" onClick={() => setEdit(fromRow(w))}>แก้ไข</button>
           </div>
           {edit?.id === w.id && <WorkerForm f={edit} setF={setEdit} profile={profile} />}
@@ -73,5 +75,15 @@ function WorkerForm({ f, setF, profile }: { f: Form; setF: (f: Form | null) => v
         <button className="btn ghost sm" onClick={() => setF(null)}>ยกเลิก</button>
       </div>
     </>
+  )
+}
+
+function TeamLead({ w }: { w: WorkerRow }) {
+  const { busy, run } = useAction()
+  return (
+    <button className="btn ghost sm" disabled={busy} title="หัวหน้าทีมลงเวลาและส่งงานแทนลูกทีมที่ไม่มีมือถือได้"
+            onClick={() => run(() => rpc('set_team_lead', { p_worker: w.id, p_on: !w.is_team_lead }), w.is_team_lead ? 'เลิกเป็นหัวหน้าทีมแล้ว' : 'ตั้งเป็นหัวหน้าทีมแล้ว')}>
+      {w.is_team_lead ? 'เลิกเป็นหัวหน้าทีม' : 'ตั้งเป็นหัวหน้าทีม'}
+    </button>
   )
 }

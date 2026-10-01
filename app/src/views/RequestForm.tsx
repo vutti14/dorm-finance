@@ -1,5 +1,5 @@
 // ขอเบิก — daily labor + materials, and common expenses (prototype VIEWS['ขอเบิก'])
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { rpc, supabase } from '../lib/supabase'
 import { useLive } from '../lib/live'
 import { fmt, todayTH } from '../lib/format'
@@ -49,6 +49,21 @@ export default function RequestForm({ onSent }: { onSent: () => void }) {
   const [receipts, setReceipts] = useState<string[]>([])
 
   const list = workers.data || []
+  // pre-tick workers who checked in today and have no wage claim yet (SPEC §4.8 "manager's form pre-ticks")
+  const att = useLive<{ worker_id: string; project_id: string; checkout_at: string | null }[]>(async () => {
+    const { data } = await supabase.from('attendance').select('worker_id, project_id, checkout_at').eq('work_date', date)
+    return data || []
+  }, ['attendance'], [date])
+  const checkedIn = (att.data || []).filter((a) => !a.checkout_at)
+  useEffect(() => {
+    if (!checkedIn.length) return
+    setPicks((cur) => {
+      const next = { ...cur }
+      for (const a of checkedIn) if (!next[a.worker_id]) next[a.worker_id] = { on: true, project_id: a.project_id, work_type: a.project_id === 'N503' ? 'renovation' : 'routine', room_code: a.project_id === 'N503' ? '503' : '' }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [att.data])
   const pick = (id: string): Pick => picks[id] || { on: false, project_id: 'N', work_type: 'routine', room_code: '' }
   const setPick = (id: string, p: Partial<Pick>) => setPicks({ ...picks, [id]: { ...pick(id), ...p } })
 
@@ -69,7 +84,9 @@ export default function RequestForm({ onSent }: { onSent: () => void }) {
     <>
       <div className="panel">
         <h2>ขอเบิกค่าแรงรายวัน + วัสดุ</h2>
-        <div className="note">ระยะ M3 ช่างจะลงเวลาด้วยมือถือ แล้วระบบติ๊กคนที่มาทำงานให้อัตโนมัติ — ตอนนี้ให้เลือกเอง</div>
+        {checkedIn.length > 0
+          ? <div className="note">วันนี้ลงเวลาแล้ว {checkedIn.length} คน — ติ๊กและเลือกโครงการให้อัตโนมัติ · ถ้าช่างกด "ส่งงาน" เอง ค่าแรงจะไปรอที่แท็บลงเวลางาน (ไม่ต้องเบิกซ้ำที่นี่)</div>
+          : <div className="note">ยังไม่มีใครลงเวลาวันนี้ — ให้ช่าง/แม่บ้านลงเวลาด้วยมือถือ จะได้ไม่ต้องกรอกซ้ำ</div>}
         <div className="row"><label>วันที่ทำงาน <input className="inp" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label></div>
         <h3>ใครมาทำงาน — 1 คน 1 โครงการ</h3>
         <div className="scroll">

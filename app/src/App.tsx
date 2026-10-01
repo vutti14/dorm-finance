@@ -4,7 +4,7 @@ import { configured, supabase } from './lib/supabase'
 import { useLive } from './lib/live'
 import { ROLE_TH, type Alert, type Profile, type Role } from './lib/types'
 import Login, { Consent } from './auth/Login'
-import { Loading, Soon } from './components/ui'
+import { Loading } from './components/ui'
 import BillsView from './views/BillsView'
 import AlertsView from './views/AlertsView'
 import OverviewView from './views/OverviewView'
@@ -16,6 +16,8 @@ import WorkersView from './views/WorkersView'
 import { AllRequests, Audit, MyRequests, Salary, ToApprove, ToPay } from './views/RequestViews'
 import { Balances, Transfers } from './views/MoneyViews'
 import CeoWatch from './components/CeoWatch'
+import { CrewHistory, CrewToday } from './views/CrewViews'
+import AttendanceManager from './views/AttendanceManager'
 
 // Tab names exactly as SPEC §7 / prototype. Tabs whose milestone is not built yet are hidden for now.
 type Tab = { name: string; m: 1 | 2 | 3 | 4 }
@@ -29,7 +31,7 @@ const MENU: Record<Role, Tab[]> = {
         T('ทะเบียนคนงาน', 2), T('โอน / เจ้าของ', 2), T('ยอดบัญชี', 2), T('รายการทั้งหมด', 2), T('จดมิเตอร์', 4), T('ผู้ใช้งาน'), T('ตั้งค่า'), T('สิทธิ์')],
   worker: [T('ลงเวลางาน', 3), T('ประวัติของฉัน', 3)],
 }
-const BUILT = 2
+const BUILT = 3
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -79,7 +81,6 @@ export default function App() {
       <CeoWatch isCeo={profile.role === 'ceo'} />
       <Tabs profile={profile} tabs={tabs} current={current} onPick={setTab} />
       <main>
-        {tabs.length === 0 && <Soon what="ลงเวลางาน · ประวัติของฉัน" milestone="M3" />}
         {current === 'บิลค่าห้อง' && <BillsView profile={profile} />}
         {current === 'แจ้งเตือน' && <AlertsView />}
         {current === 'ภาพรวม' && <OverviewView profile={profile} />}
@@ -96,6 +97,8 @@ export default function App() {
         {current === 'โอน / เจ้าของ' && <Transfers />}
         {current === 'ยอดบัญชี' && <Balances canCheck={['finance', 'ceo'].includes(profile.role)} />}
         {current === 'ทะเบียนคนงาน' && <WorkersView profile={profile} />}
+        {current === 'ลงเวลางาน' && (profile.role === 'worker' ? <CrewToday profile={profile} /> : <AttendanceManager profile={profile} />)}
+        {current === 'ประวัติของฉัน' && <CrewHistory />}
       </main>
       {later.length > 0 && tabs.length > 0 && (
         <p className="muted mt-6">ระยะถัดไปจะเพิ่มแท็บ: {later.map((t) => t.name).join(' · ')}</p>
@@ -122,12 +125,15 @@ function Tabs({ profile, tabs, current, onPick }: { profile: Profile; tabs: Tab[
     if (names.includes('รออนุมัติ')) out['รออนุมัติ'] = await c((q) => all ? q.eq('status', 'to_approve') : q.eq('status', 'to_approve').eq('approver_role', role))
     if (names.includes('ตรวจสอบ')) out['ตรวจสอบ'] = await c((q) => q.eq('status', 'paid'))
     if (names.includes('รายการของฉัน')) out['รายการของฉัน'] = await c((q) => q.eq('status', 'asked').eq('requester_id', profile.id))
+    if (names.includes('ลงเวลางาน') && role !== 'worker') {
+      out['ลงเวลางาน'] = (await supabase.from('request_lines').select('id', { count: 'exact', head: true }).eq('status', 'claimed')).count || 0
+    }
     if (names.includes('ทะเบียนคนงาน')) {
       const { data } = await supabase.rpc('workers_complete')
       out['ทะเบียนคนงาน'] = ((data || []) as { missing: string[]; active: boolean }[]).filter((w) => w.active && w.missing.length).length
     }
     return out
-  }, ['requests', 'workers'], [profile.id, tabs.map((t) => t.name).join()])
+  }, ['requests', 'workers', 'request_lines'], [profile.id, tabs.map((t) => t.name).join()])
   const high = (alerts || []).filter((a) => a.level === 'high').length
   return (
     <nav className="tabs" role="tablist">
