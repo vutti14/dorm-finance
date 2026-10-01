@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dev-dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+supabase/.temp/
+supabase/.branches/
+# Owner files contain real names, phone numbers and money. Keep them out of git until the repo is PRIVATE,
+# then delete this line and commit /reference (SPEC §2 repo layout).
+/reference/
+*.tsbuildinfo
