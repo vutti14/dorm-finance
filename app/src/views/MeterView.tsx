@@ -16,7 +16,7 @@ interface SheetRow {
   water_flat: number | null; elec_prev: number | null; elec_curr: number | null; elec_units: number | null
   prev_units: number | null; water_prev: number | null; water_curr: number | null; ai_value: number | null
   photo_path: string | null; read_by_name: string | null; read_at: string | null; flags: string[]; total: number
-  elec_rate: number; water_rate: number
+  elec_rate: number; water_rate: number; water_photo_path: string | null
 }
 interface AiResult {
   reading: number | null; digits_seen: string; room_label_seen: string | null
@@ -233,7 +233,7 @@ function MeterEntry({ row, roundId, onClose, onNext }: { row: SheetRow; roundId:
                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onPhoto(f) }} />
         </label>
         {s.preview && <img src={s.preview} alt="รูปมิเตอร์" className="w-[96px] h-[96px] object-cover rounded-md border" style={{ borderColor: 'var(--line)' }} />}
-        {!s.preview && kind === 'elec' && row.photo_path && <Thumbs paths={[row.photo_path]} label="รูปที่บันทึกไว้" />}
+        {!s.preview && (kind === 'elec' ? row.photo_path : row.water_photo_path) && <Thumbs paths={[(kind === 'elec' ? row.photo_path : row.water_photo_path)!]} label="รูปที่บันทึกไว้" />}
       </div>
       <p className="muted">ให้เห็นตัวเลขชัด ๆ และสติกเกอร์เลขห้องในรูปเดียวกัน</p>
 

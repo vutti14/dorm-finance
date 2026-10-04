@@ -23,7 +23,9 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 
 [auth.email]
-enable_signup = false
+# keep email+password sign-in ON (the app logs in with p<phone>@dorm.internal + PIN). Self sign-up is blocked by
+# [auth] enable_signup = false above; setting enable_signup = false here would switch email login off entirely.
+enable_signup = true
 enable_confirmations = false
 
 [storage]

@@ -38,6 +38,8 @@ npm run test:db          # Postgres จริงแบบใช้แล้ว�
 npm run typecheck && npm run build
 ```
 
+ทดสอบทั้งระบบผ่าน Supabase จริง (auth · edge functions · storage · realtime) แล้วลบข้อมูลทดสอบ: `scripts/e2e.ts` — ผลล่าสุดใน [docs/go-live-test.md](docs/go-live-test.md)
+
 `scripts/test-db.sh` ใช้ Postgres 15/16 ธรรมดา ไม่ต้องใช้ Docker โดยจำลองส่วน `auth` ของ Supabase จาก `supabase/tests/stubs.sql`
 
 ## โครงสร้าง

@@ -235,10 +235,21 @@ describe.skipIf(!URL || !existsSync(SAMPLE))('database', () => {
     expect(await as('worker', `select * from v_alerts`)).toEqual([])
   })
 
-  it('realtime publication covers the live tables', async () => {
+  it('realtime: one pulse per table per transaction (bulk changes do not flood clients)', async () => {
     const rows = await su(`select tablename from pg_publication_tables where pubname = 'supabase_realtime'`)
-    expect(rows.map((r) => r.tablename)).toEqual(expect.arrayContaining(
-      ['bills', 'receipts', 'bill_rounds', 'meter_readings', 'requests', 'request_events', 'attendance', 'ledger_entries', 'workers']))
+    expect(rows.map((r) => r.tablename)).toEqual(['live_pulse'])
+    const before = await su(`select topic, n from live_pulse where topic in ('bills', 'bill_rounds')`)
+    const c = await pool.connect()
+    try {
+      await c.query('begin')
+      await c.query(`update bills set flags = flags where true`)          // many rows, two statements
+      await c.query(`update bills set flags = flags where true`)
+      await c.query('commit')
+    } finally { c.release() }
+    const after = await su(`select topic, n from live_pulse where topic in ('bills', 'bill_rounds')`)
+    const n = (rs: any[], t: string) => Number(rs.find((r) => r.topic === t)?.n ?? 0)
+    expect(n(after, 'bills') - n(before, 'bills')).toBe(1)
+    expect(n(after, 'bill_rounds') - n(before, 'bill_rounds')).toBe(0)
   })
 
   it('petty cash opening balance: set, then corrected with a reason via an adjustment entry', async () => {

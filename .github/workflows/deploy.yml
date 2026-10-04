@@ -8,6 +8,10 @@ name: deploy
 on:
   workflow_dispatch:
     inputs:
+      run_e2e:
+        description: "ทดลองใช้ทุกฟังก์ชันแล้วลบข้อมูลทดสอบ (ใช้กับ project ใหม่ก่อนโหลดข้อมูลจริง)"
+        type: boolean
+        default: true
       load_opening:
         description: "โหลดยอดยกมา + ประวัติ ม.ค.–ก.ย. (ครั้งแรกครั้งเดียว · ต้องเป็น repo private และ commit /reference แล้ว)"
         type: boolean
@@ -51,6 +55,19 @@ jobs:
           umask 077; printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY" > "$RUNNER_TEMP/fn.env"
           supabase secrets set --env-file "$RUNNER_TEMP/fn.env" --project-ref "$PROJECT_REF"
           rm -f "$RUNNER_TEMP/fn.env"
+
+      - name: Try every function, then delete the test data (fresh project only)
+        if: ${{ inputs.run_e2e }}
+        shell: bash      # -o pipefail: a failed check fails the step even through tee
+        run: |
+          keys=$(supabase projects api-keys --project-ref "$PROJECT_REF" -o json)
+          ANON=$(echo "$keys" | jq -r '[.[] | select(.name == "anon")][0].api_key')
+          SERVICE=$(echo "$keys" | jq -r '[.[] | select(.name == "service_role")][0].api_key')
+          echo "::add-mask::$ANON"; echo "::add-mask::$SERVICE"
+          cd scripts && npm ci --no-audit --no-fund
+          SUPABASE_URL="https://$PROJECT_REF.supabase.co" SUPABASE_ANON_KEY="$ANON" SUPABASE_SERVICE_ROLE_KEY="$SERVICE" \
+            DATABASE_URL="$DB_URL" npx tsx e2e.ts | tee "$RUNNER_TEMP/e2e.txt"
+          { echo "### ทดลองใช้ทุกฟังก์ชัน"; echo '```'; tail -40 "$RUNNER_TEMP/e2e.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Opening balances + Jan–Sep history (first time only)
         if: ${{ inputs.load_opening }}
