@@ -1,0 +1,17 @@
+{
+  "name": "dorm-finance-scripts",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "import-opening": "tsx import-opening.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0"
+  }
+}

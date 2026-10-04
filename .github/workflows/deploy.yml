@@ -1,0 +1,87 @@
+# Deploy the database and edge functions to Supabase. Run by hand: GitHub → Actions → deploy → Run workflow.
+# Needs repository secrets (Settings → Secrets and variables → Actions) — never paste them in chat or commit them:
+#   SUPABASE_ACCESS_TOKEN  personal access token (supabase.com → Account → Access Tokens)
+#   SUPABASE_PROJECT_REF   the project id in the dashboard URL (supabase.com/dashboard/project/<ref>)
+#   SUPABASE_DB_URL        Project → Connect → "Session pooler" connection string, with the database password filled in
+#   ANTHROPIC_API_KEY      optional — turns on AI meter reading
+name: deploy
+on:
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "ทดลองใช้ทุกฟังก์ชันแล้วลบข้อมูลทดสอบ (ใช้กับ project ใหม่ก่อนโหลดข้อมูลจริง)"
+        type: boolean
+        default: true
+      load_opening:
+        description: "โหลดยอดยกมา + ประวัติ ม.ค.–ก.ย. (ครั้งแรกครั้งเดียว · ต้องเป็น repo private และ commit /reference แล้ว)"
+        type: boolean
+        default: false
+concurrency: { group: deploy, cancel-in-progress: false }
+jobs:
+  supabase:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          missing=""
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing="$missing SUPABASE_ACCESS_TOKEN"
+          [ -n "$PROJECT_REF" ] || missing="$missing SUPABASE_PROJECT_REF"
+          [ -n "$DB_URL" ] || missing="$missing SUPABASE_DB_URL"
+          if [ -n "$missing" ]; then echo "::error::ยังไม่ได้ตั้ง secret:$missing"; exit 1; fi
+
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+
+      - name: Database migrations
+        run: supabase db push --db-url "$DB_URL"
+
+      - name: Edge functions
+        run: |
+          supabase functions deploy login --no-verify-jwt --project-ref "$PROJECT_REF"
+          supabase functions deploy activate --no-verify-jwt --project-ref "$PROJECT_REF"
+          supabase functions deploy admin-create-user --project-ref "$PROJECT_REF"
+          supabase functions deploy read-meter --project-ref "$PROJECT_REF"
+
+      - name: AI meter reading key (optional)
+        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "ไม่ได้ตั้ง ANTHROPIC_API_KEY — ข้าม (พิมพ์เลขมิเตอร์เองได้ตามปกติ)"; exit 0; fi
+          umask 077; printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY" > "$RUNNER_TEMP/fn.env"
+          supabase secrets set --env-file "$RUNNER_TEMP/fn.env" --project-ref "$PROJECT_REF"
+          rm -f "$RUNNER_TEMP/fn.env"
+
+      - name: Try every function, then delete the test data (fresh project only)
+        if: ${{ inputs.run_e2e }}
+        shell: bash      # -o pipefail: a failed check fails the step even through tee
+        run: |
+          keys=$(supabase projects api-keys --project-ref "$PROJECT_REF" -o json)
+          ANON=$(echo "$keys" | jq -r '[.[] | select(.name == "anon")][0].api_key')
+          SERVICE=$(echo "$keys" | jq -r '[.[] | select(.name == "service_role")][0].api_key')
+          echo "::add-mask::$ANON"; echo "::add-mask::$SERVICE"
+          cd scripts && npm ci --no-audit --no-fund
+          SUPABASE_URL="https://$PROJECT_REF.supabase.co" SUPABASE_ANON_KEY="$ANON" SUPABASE_SERVICE_ROLE_KEY="$SERVICE" \
+            DATABASE_URL="$DB_URL" npx tsx e2e.ts | tee "$RUNNER_TEMP/e2e.txt"
+          { echo "### ทดลองใช้ทุกฟังก์ชัน"; echo '```'; tail -40 "$RUNNER_TEMP/e2e.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Opening balances + Jan–Sep history (first time only)
+        if: ${{ inputs.load_opening }}
+        env: { PRIVATE: "${{ github.event.repository.private }}" }
+        run: |
+          if [ "$PRIVATE" != "true" ]; then echo "::error::repo ยังเป็น public — เปลี่ยนเป็น private ก่อนโหลดข้อมูลจริง"; exit 1; fi
+          if [ ! -f reference/opening.json ]; then echo "::error::ไม่พบ reference/opening.json — commit โฟลเดอร์ reference ก่อน"; exit 1; fi
+          cd scripts && npm ci --no-audit --no-fund && DATABASE_URL="$DB_URL" npx tsx import-opening.ts --reference ../reference
+
+      - name: Summary
+        run: |
+          {
+            echo "### ขึ้นระบบแล้ว"
+            echo "- migrations: $(ls supabase/migrations/*.sql | wc -l) ไฟล์"
+            echo "- edge functions: login · activate · admin-create-user · read-meter"
+            echo "- ขั้นต่อไป: Cloudflare Pages + สร้างบัญชี CEO แรก (docs/deploy.md)"
+          } >> "$GITHUB_STEP_SUMMARY"
